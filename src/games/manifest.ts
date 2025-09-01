@@ -1,4 +1,5 @@
 import { gameMeta as genericClicker } from "@/games/generic-clicker/meta";
+import { gameMeta as fighterArena } from "@/games/fighter-arena/meta"; // mantenha imports existentes de outros jogos, se houver
 
 export type GameMeta = {
   slug: string;
@@ -8,4 +9,8 @@ export type GameMeta = {
   version: number;
 };
 
-export const games = [genericClicker];
+export const games = [
+  genericClicker,
+  // ...outros metas,
+  fighterArena,
+];

@@ -26,7 +26,7 @@ jobs:
         run: |
           VERSION=${{ steps.get_version.outputs.version }}
           git tag "$VERSION"
-          git push "$VERSION"
+          git push origin "$VERSION"
 
       - name: Create changelog text
         id: create_changelog_text

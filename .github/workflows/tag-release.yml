@@ -1,14 +1,16 @@
-name: Auto Tag Release
+
+name: Create Production Tag
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches:
       - main
 
 jobs:
-  release-tag:
+  create-tag:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
-    if: github.event.pusher != null
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,7 +19,20 @@ jobs:
         id: get_version
         run: |
           VERSION=$(jq -r .version package.json)
+          echo "RELEASE VERSION: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Push tag
+        run: |
+          VERSION=${{ steps.get_version.outputs.version }}
+          git tag "$VERSION"
+          git push "$VERSION"
+
+      - name: Create changelog text
+        id: create_changelog_text
+        uses: loopwerk/tag-changelog@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Read project changelog
         id: read_changelog
@@ -26,9 +41,10 @@ jobs:
           cat CHANGELOG.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Create release
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
-          name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
           body: ${{ env.RELEASE_NOTES }}
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -36,7 +36,26 @@ import { icons, LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Game() {
-  const { gold, gems, heroClass, level, xp, hasNecromancy, attrs, upPoints, addPoint, reroll } = useArenaStore();
+  const {
+    gold,
+    gems,
+    heroClass,
+    level,
+    xp,
+    hasNecromancy,
+    attrs,
+    upPoints,
+    addPoint,
+    reroll,
+    getForgeCost,
+    forge,
+    buyNecromancy,
+    enemies,
+    spawnEnemy,
+    countCommon,
+    countElite,
+    countBerserk,
+  } = useArenaStore();
   const [openReroll, setOpenReroll] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
 
@@ -161,7 +180,23 @@ export default function Game() {
             </div>
 
             <div className="flex items-center gap-2 pt-2">
-              <Button className="hover:scale-[.99] transition">Forjar</Button>
+              <Button
+                aria-label="Forjar"
+                className="hover:scale-[.99] transition"
+                onClick={() => {
+                  const before = gold;
+                  // tentativa de forja
+                  forge();
+                  const after = useArenaStore.getState().gold;
+                  if (after < before) {
+                    toast.success("Forja concluída: +1 em todos os atributos");
+                  } else {
+                    toast.error("Ouro insuficiente para forjar");
+                  }
+                }}
+              >
+                Forjar (💰 {getForgeCost()})
+              </Button>
               <Sheet open={openSkills} onOpenChange={setOpenSkills}>
                 <SheetTrigger asChild>
                   <Button variant="secondary" className="hover:scale-[.99] transition">Habilidades</Button>
@@ -182,9 +217,24 @@ export default function Game() {
                       <div className="font-medium">Voltar à Vida (Revive)</div>
                       <div className="text-muted-foreground">Ressuscita o herói — até 3 cargas.</div>
                     </div>
-                    <div>
-                      <div className="font-medium">Necromante</div>
-                      <div className="text-muted-foreground">Chance de converter inimigos mortos em aliados.</div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-medium">Necromante</div>
+                        <div className="text-muted-foreground">Converte mortos em aliados. Custa 1 💎.</div>
+                      </div>
+                      <Button
+                        aria-label="Ativar Necromante"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          const res = buyNecromancy();
+                          if (res === "ok") toast.success("Necromancia ativada");
+                          else if (res === "no-gems") toast.error("Você precisa de 1 💎");
+                          else toast("Já está ativo");
+                        }}
+                      >
+                        Ativar
+                      </Button>
                     </div>
                     <div>
                       <div className="font-medium">Regeneração</div>
@@ -209,7 +259,7 @@ export default function Game() {
                   </div>
                   <Card className="border-dashed border-muted/40">
                     <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                      Espaço reservado para aliados…
+                      Aliados surgirão de inimigos derrotados…
                     </CardContent>
                   </Card>
                 </div>
@@ -223,29 +273,45 @@ export default function Game() {
             <CardTitle className="flex items-center justify-between w-full">
               <span>Arena de Monstros</span>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>Comuns: 0</span>
-                <span>Elite: 0</span>
-                <span>Berserk: 0</span>
+                <span>Comuns: {countCommon()}</span>
+                <span>Elite: {countElite()}</span>
+                <span>Berserk: {countBerserk()}</span>
               </div>
             </CardTitle>
             <CardDescription>Spawns e batalhas acontecem aqui</CardDescription>
           </CardHeader>
           <CardContent className="py-6 space-y-4">
             <Button
+              aria-label="Gerar Monstro"
               onClick={() => {
-                toast("Placeholder: Gerar Monstro", {
-                  description: "O sistema de spawns será implementado depois.",
-                });
+                const r = spawnEnemy();
+                if (r === "ok") toast.success("Monstro gerado");
+                else toast("Limite de 10 atingido");
               }}
               className="hover:scale-[.99] transition"
             >
               Gerar Monstro
             </Button>
-            <Card className="border-dashed border-muted/40">
-              <CardContent className="py-16 text-center text-sm text-muted-foreground">
-                Spawns automáticos ativos…
-              </CardContent>
-            </Card>
+
+            {enemies.length === 0 ? (
+              <Card className="border-dashed border-muted/40">
+                <CardContent className="py-16 text-center text-sm text-muted-foreground">
+                  Spawns automáticos ativos…
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {enemies.map((e) => (
+                  <Card key={e.id} className="p-3 flex items-center gap-2">
+                    <span className="text-lg" aria-hidden>{e.emoji}</span>
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-sm font-medium">{e.name}</span>
+                      <span className={"text-xs " + (e.rarity === "elite" ? "text-yellow-300" : e.rarity === "berserk" ? "text-red-400" : "text-muted-foreground")}>{e.rarity}</span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

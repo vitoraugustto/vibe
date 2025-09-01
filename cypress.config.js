@@ -12,10 +12,11 @@ export default defineConfig({
     screenshotOnRunFailure: true,
     reporter: 'mochawesome',
     reporterOptions: {
-      reportDir: 'cypress/reports/mochawesome-report',
+      reportDir: 'cypress/reports/mochawesome',
       overwrite: false,
       html: true,
-      json: true
+      json: false,
+      inlineAssets: true
     },
     setupNodeEvents(on, config) {
       registerGrepPlugin(config);

@@ -27,3 +27,15 @@ export const gemChancePct = (level:number, lck:number, int:number) => {
 
 // Mitigação simplificada contra DEF (mantém dano mínimo 1)
 export const applyDefense = (raw:number, def:number) => Math.max(1, raw - def);
+
+// Dano do herói com variação leve e crítico opcional
+export function rollHeroDamage(attrs: Attrs, isCrit: boolean) {
+  const base = heroBaseDamage(attrs);
+  const spread = base * 0.12; // ±12%
+  const raw = base + (Math.random() * 2 - 1) * spread;
+  const mult = isCrit ? 1.7 : 1.0;
+  return Math.max(1, Math.round(raw * mult));
+}
+
+// Chance de crítico do herói (0..1)
+export const critChance01 = (lck:number) => Math.min(0.5, (5 + lck*0.2) / 100);

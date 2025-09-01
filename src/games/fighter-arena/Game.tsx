@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useArenaStore } from "@/games/fighter-arena/state";
 import {
   apsFromAGI,
@@ -55,9 +55,18 @@ export default function Game() {
     countCommon,
     countElite,
     countBerserk,
+    heroHp,
+    heroMaxHp,
+    floats,
+    startCombatLoop,
   } = useArenaStore();
   const [openReroll, setOpenReroll] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
+
+  useEffect(() => {
+    const dispose = startCombatLoop();
+    return () => dispose();
+  }, [startCombatLoop]);
 
   const Icon = (icons as Record<string, LucideIcon>)["Swords"] || icons["Gamepad"];
 
@@ -279,8 +288,13 @@ export default function Game() {
               </div>
             </CardTitle>
             <CardDescription>Spawns e batalhas acontecem aqui</CardDescription>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs">HP do Herói:</span>
+              <Progress value={heroHp / heroMaxHp * 100} className="flex-1 h-2" />
+              <span className="text-xs">{Math.round(heroHp)} / {Math.round(heroMaxHp)}</span>
+            </div>
           </CardHeader>
-          <CardContent className="py-6 space-y-4">
+          <CardContent className="py-6 space-y-4 relative">
             <Button
               aria-label="Gerar Monstro"
               onClick={() => {
@@ -293,6 +307,32 @@ export default function Game() {
               Gerar Monstro
             </Button>
 
+            {/* Floating numbers */}
+            <div className="absolute inset-0 pointer-events-none select-none z-20">
+              {floats.map((f) => (
+                <span
+                  key={f.id}
+                  className={
+                    `absolute left-0 top-0 animate-[float_700ms_ease-out_forwards] ` +
+                    (f.color === "crit"
+                      ? "text-yellow-300 font-semibold drop-shadow"
+                      : f.color === "hero"
+                      ? "text-emerald-300"
+                      : f.color === "enemy"
+                      ? "text-red-400"
+                      : "text-green-400")
+                  }
+                  style={{
+                    transform: `translate(${f.x}%, ${f.y}%)`,
+                    pointerEvents: "none",
+                  }}
+                >
+                  {f.text}
+                </span>
+              ))}
+            </div>
+
+            {/* Arena grid or placeholder */}
             {enemies.length === 0 ? (
               <Card className="border-dashed border-muted/40">
                 <CardContent className="py-16 text-center text-sm text-muted-foreground">
@@ -312,6 +352,8 @@ export default function Game() {
                 ))}
               </div>
             )}
+            {/* Aria-live region for accessibility */}
+            <div aria-live="polite" className="sr-only" />
           </CardContent>
         </Card>
       </div>

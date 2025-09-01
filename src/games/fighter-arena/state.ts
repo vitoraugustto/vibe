@@ -2,6 +2,16 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
 import type { Attrs } from "@/games/fighter-arena/logic";
+import {
+  maxHpFromVIT,
+  cooldownMsFromAGI,
+  goldMultFromINT,
+  gemChancePct,
+  heroBaseDamage,
+  applyDefense,
+  rollHeroDamage,
+  critChance01,
+} from "@/games/fighter-arena/logic";
 
 export type Rarity = "common" | "elite" | "berserk";
 export type Enemy = {
@@ -11,6 +21,17 @@ export type Enemy = {
   rarity: Rarity;
   hp: number;
   maxHp: number;
+  nextAt: number;
+  dpsHint?: number;
+};
+
+export type FloatNumber = {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  color: "hero" | "crit" | "enemy" | "heal";
+  until: number;
 };
 
 export type ArenaState = {
@@ -39,7 +60,19 @@ export type ArenaState = {
   addPoint: (attr: keyof Attrs) => void;
   grantPoint: (n: number) => void;
   reroll: () => void;     // stub: apenas zera heroClass/level/xp por enquanto
+  heroHp: number;
+  heroMaxHp: number;
+  heroNextAt: number;
+  recalcHeroMaxHp: () => void;
+  floats: FloatNumber[];
+  pushFloat: (f: Omit<FloatNumber, "id">) => void;
+  tick: (now: number) => void;
+  startCombatLoop: () => () => void;
 };
+
+function rand(min: number, max: number) {
+  return Math.random() * (max - min) + min;
+}
 
 export const useArenaStore = create<ArenaState>((set, get) => ({
   gold: 0,
@@ -52,6 +85,10 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   upPoints: 0,
   forgeCount: 0,
   enemies: [],
+  heroHp: maxHpFromVIT(6),
+  heroMaxHp: maxHpFromVIT(6),
+  heroNextAt: Date.now() + cooldownMsFromAGI(6),
+  floats: [],
   getForgeCost: () => {
     const s = get();
     const cost = Math.round(1 + Math.pow(s.forgeCount, 1.35) + s.level * 0.3);
@@ -97,6 +134,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     const baseHp = rarity === "common" ? 40 : rarity === "elite" ? 90 : 120;
     const variance = 0.1 * baseHp; // ±10%
     const hp = Math.round(baseHp + (Math.random() * 2 - 1) * variance);
+    const now = Date.now();
     const enemy: Enemy = {
       id: nanoid(),
       name: pick.name,
@@ -104,6 +142,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
       rarity,
       hp,
       maxHp: hp,
+      nextAt: now + rand(900, 1800),
     };
     set({ enemies: [...s.enemies, enemy] });
     return "ok";
@@ -133,4 +172,104 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     gold: s.gold,
     gems: s.gems,
   })),
+  pushFloat: (f) => set((s) => ({
+    floats: [
+      ...s.floats,
+      {
+        ...f,
+        id: `${Date.now()}-${Math.floor(Math.random()*10000)}`,
+      },
+    ],
+  })),
+  recalcHeroMaxHp: () => set((s) => {
+    const heroMaxHp = maxHpFromVIT(s.attrs.VIT);
+    return {
+      heroMaxHp,
+      heroHp: Math.min(s.heroHp, heroMaxHp),
+    };
+  }),
+  tick: (now) => set((s) => {
+    let { heroHp, heroNextAt, gold, gems, enemies, floats } = s;
+    const { heroMaxHp, attrs, level } = s;
+    // Remove floats expirados
+    floats = floats.filter((f) => f.until > now);
+    // Herói ataca
+    if (enemies.length > 0 && now >= heroNextAt) {
+      // Ataca o inimigo com maior HP
+      let idx = 0;
+      let maxHp = enemies[0].hp;
+      for (let i = 1; i < enemies.length; ++i) {
+        if (enemies[i].hp > maxHp) {
+          idx = i;
+          maxHp = enemies[i].hp;
+        }
+      }
+      const enemy = { ...enemies[idx] };
+      const isCrit = Math.random() < critChance01(attrs.LCK);
+      let dmg = rollHeroDamage(attrs, isCrit);
+      dmg = applyDefense(dmg, 0); // enemyDef=0
+      enemy.hp -= dmg;
+      floats.push({
+        x: Math.random() * 70 + 15,
+        y: Math.random() * 40 + 10,
+        text: `-${dmg}`,
+        color: isCrit ? "crit" : "hero",
+        until: now + 700,
+        id: `${now}-hero-${Math.random()}`,
+      });
+      heroNextAt = now + cooldownMsFromAGI(attrs.AGI);
+      // Se morreu
+      if (enemy.hp <= 0) {
+        // Recompensas
+        gold += Math.round(5 * goldMultFromINT(attrs.INT));
+        const gemChance = gemChancePct(level, attrs.LCK, attrs.INT);
+        if (Math.random() < gemChance / 100) {
+          gems += 1;
+          floats.push({
+            x: Math.random() * 70 + 15,
+            y: Math.random() * 40 + 10,
+            text: `💎`,
+            color: "heal",
+            until: now + 900,
+            id: `${now}-gem-${Math.random()}`,
+          });
+        }
+        enemies = enemies.filter((e, i) => i !== idx);
+      } else {
+        enemies = enemies.map((e, i) => (i === idx ? enemy : e));
+      }
+    }
+    // Inimigos atacam
+    for (let i = 0; i < enemies.length; ++i) {
+      const e = enemies[i];
+      if (now >= e.nextAt) {
+        let dmgIn = Math.max(1, Math.round(8 + (e.maxHp * 0.06)));
+        dmgIn = applyDefense(dmgIn, attrs.DEF);
+        heroHp = Math.max(0, heroHp - dmgIn);
+        floats.push({
+          x: Math.random() * 70 + 15,
+          y: Math.random() * 40 + 10,
+          text: `-${dmgIn}`,
+          color: "enemy",
+          until: now + 700,
+          id: `${now}-enemy-${Math.random()}`,
+        });
+        e.nextAt = now + rand(1000, 2000);
+        enemies[i] = { ...e };
+      }
+    }
+    // Clamp heroHp
+    heroHp = Math.max(0, Math.min(heroHp, heroMaxHp));
+    return { heroHp, heroMaxHp, heroNextAt, gold, gems, enemies, floats };
+  }),
+  startCombatLoop: () => {
+    let stopped = false;
+    const loop = () => {
+      if (stopped) return;
+      get().tick(Date.now());
+      setTimeout(loop, 100);
+    };
+    loop();
+    return () => { stopped = true; };
+  },
 }));

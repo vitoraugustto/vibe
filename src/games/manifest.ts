@@ -1,3 +1,5 @@
+import { gameMeta as genericClicker } from "@/games/generic-clicker/meta";
+
 export type GameMeta = {
   slug: string;
   title: string;
@@ -6,4 +8,4 @@ export type GameMeta = {
   version: number;
 };
 
-export const games: GameMeta[] = [];
+export const games = [genericClicker];

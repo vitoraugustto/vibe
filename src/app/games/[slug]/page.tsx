@@ -3,8 +3,11 @@ import { Card, Button } from "@/components"
 import ClientRenderer from "./ClientRenderer"
 import Link from "next/link"
 
-export default function GameSlugPage({ params }: { params: { slug: string } }) {
-  const game = games.find(g => g.slug === params.slug)
+export default async function GameSlugPage({ params }: { params: { slug: string } }) {
+  const p = await params;
+  const slug = p.slug;
+
+  const game = games.find(g => g.slug === slug);
 
   if (!game) {
     return (
@@ -16,8 +19,8 @@ export default function GameSlugPage({ params }: { params: { slug: string } }) {
           </Button>
         </Card>
       </div>
-    )
+    );
   }
 
-  return <ClientRenderer slug={params.slug} />
+  return <ClientRenderer slug={slug} />;
 }

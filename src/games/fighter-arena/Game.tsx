@@ -4,6 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { useArenaStore } from "@/games/fighter-arena/state";
 import {
+  apsFromAGI,
+  heroBaseDamage,
+  critChancePct,
+  maxHpFromVIT,
+  goldMultFromINT,
+  gemChancePct,
+} from "@/games/fighter-arena/logic";
+import {
   Button,
   Card,
   CardContent,
@@ -28,18 +36,9 @@ import { icons, LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Game() {
-  const { gold, gems, heroClass, level, xp, hasNecromancy, reroll } = useArenaStore();
+  const { gold, gems, heroClass, level, xp, hasNecromancy, attrs, upPoints, addPoint, reroll } = useArenaStore();
   const [openReroll, setOpenReroll] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
-
-  const TooltipStat = ({ code, desc }: { code: string; desc: string }) => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="cursor-help select-none rounded-sm px-1 py-0.5 hover:bg-muted/50 transition">{code}</span>
-      </TooltipTrigger>
-      <TooltipContent>{desc}</TooltipContent>
-    </Tooltip>
-  );
 
   const Icon = (icons as Record<string, LucideIcon>)["Swords"] || icons["Gamepad"];
 
@@ -113,13 +112,52 @@ export default function Game() {
               <Progress value={xp * 100} />
             </div>
 
-            <div className="flex flex-wrap gap-2 text-xs">
-              <TooltipStat code="STR" desc="Força: dano físico e carga." />
-              <TooltipStat code="AGI" desc="Agilidade: velocidade e evasão." />
-              <TooltipStat code="INT" desc="Inteligência: dano mágico e mana." />
-              <TooltipStat code="VIT" desc="Vitalidade: vida máxima e regen." />
-              <TooltipStat code="DEF" desc="Defesa: redução de dano." />
-              <TooltipStat code="LCK" desc="Sorte: crítico e drops." />
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">Atributos {upPoints > 0 && <span className="text-muted-foreground">(+{upPoints})</span>}</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+              {([
+                { key: "STR", label: "STR", desc: "Força: aumenta dano base." },
+                { key: "AGI", label: "AGI", desc: "Agilidade: aumenta ataques/segundo (reduz cooldown exponencialmente)." },
+                { key: "INT", label: "INT", desc: "Inteligência: aumenta dano e multiplica ouro; melhora chance de 💎." },
+                { key: "VIT", label: "VIT", desc: "Vitalidade: aumenta HP máx (~+14/pt)." },
+                { key: "DEF", label: "DEF", desc: "Defesa: reduz dano recebido." },
+                { key: "LCK", label: "LCK", desc: "Sorte: aumenta chance de crítico e de 💎." },
+              ] as const).map((a) => (
+                <div key={a.key} className="flex items-center justify-between rounded-md border px-2 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help font-medium">{a.label}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{a.desc}</TooltipContent>
+                    </Tooltip>
+                    <span className="text-muted-foreground">{attrs[a.key]}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Aumentar ${a.key}`}
+                    disabled={upPoints <= 0}
+                    onClick={() => addPoint(a.key)}
+                  >
+                    +
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <Separator className="my-2" />
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Atributos Atuais</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center justify-between"><span>APS</span><span className="font-medium text-foreground">{apsFromAGI(attrs.AGI).toFixed(2)}</span></div>
+                <div className="flex items-center justify-between"><span>Dano médio</span><span className="font-medium text-foreground">{Math.round(heroBaseDamage(attrs))}</span></div>
+                <div className="flex items-center justify-between"><span>Crítico</span><span className="font-medium text-foreground">{critChancePct(attrs.LCK).toFixed(1)}%</span></div>
+                <div className="flex items-center justify-between"><span>HP Máx</span><span className="font-medium text-foreground">{Math.round(maxHpFromVIT(attrs.VIT))}</span></div>
+                <div className="flex items-center justify-between"><span>x Ouro</span><span className="font-medium text-foreground">{goldMultFromINT(attrs.INT).toFixed(2)}x</span></div>
+                <div className="flex items-center justify-between"><span>Chance de 💎</span><span className="font-medium text-foreground">{gemChancePct(level, attrs.LCK, attrs.INT).toFixed(1)}%</span></div>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-2">
@@ -132,9 +170,31 @@ export default function Game() {
                   <SheetHeader>
                     <SheetTitle>Habilidades do Herói</SheetTitle>
                     <SheetDescription>
-                      Configuração de skills virá depois.
+                      As habilidades serão configuráveis em breve. Abaixo, ideias em placeholder:
                     </SheetDescription>
                   </SheetHeader>
+                  <div className="px-4 pb-4 space-y-3 text-sm">
+                    <div>
+                      <div className="font-medium">Duplicar status</div>
+                      <div className="text-muted-foreground">Duplica um atributo escolhido — máx 3 usos.</div>
+                    </div>
+                    <div>
+                      <div className="font-medium">Voltar à Vida (Revive)</div>
+                      <div className="text-muted-foreground">Ressuscita o herói — até 3 cargas.</div>
+                    </div>
+                    <div>
+                      <div className="font-medium">Necromante</div>
+                      <div className="text-muted-foreground">Chance de converter inimigos mortos em aliados.</div>
+                    </div>
+                    <div>
+                      <div className="font-medium">Regeneração</div>
+                      <div className="text-muted-foreground">0,4% do HP máx × nível por segundo.</div>
+                    </div>
+                    <div>
+                      <div className="font-medium">Sanguessuga (Lifesteal)</div>
+                      <div className="text-muted-foreground">2% × nível do dano causado.</div>
+                    </div>
+                  </div>
                 </SheetContent>
               </Sheet>
             </div>

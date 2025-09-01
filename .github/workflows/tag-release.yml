@@ -22,8 +22,6 @@ jobs:
       - name: Create tag
         id: create_tag
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
           git tag v${{ steps.get_version.outputs.version }}
           git push origin v${{ steps.get_version.outputs.version }}
 

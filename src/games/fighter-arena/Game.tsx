@@ -12,8 +12,10 @@ import {
   goldMultFromINT,
   gemChancePct,
 } from "@/games/fighter-arena/logic";
-import { Button, Card, CardContent, Badge, Progress, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetTrigger, Tooltip, TooltipContent, TooltipTrigger, Separator } from "@/components";
+import { Button, Card, CardContent, Badge, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetTrigger, Tooltip, TooltipContent, TooltipTrigger, Separator } from "@/components";
 import { SectionCard, type SectionCardAction } from "./components/SectionCard";
+import { HpBar, XpBar } from "./components/Bars";
+import GameOverModal from "./components/GameOverModal";
 import { icons, LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +30,6 @@ export default function Game() {
     attrs,
     upPoints,
     addPoint,
-    reroll,
     getForgeCost,
     forge,
     buyNecromancy,
@@ -41,6 +42,7 @@ export default function Game() {
 
   const [openReroll, setOpenReroll] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
+  const [openGameOver, setOpenGameOver] = useState(false);
 
   const arenaRef = useRef<HTMLDivElement | null>(null);
   const fighterAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -55,6 +57,11 @@ export default function Game() {
     const dispose = startCombatLoop();
     return () => dispose();
   }, [startCombatLoop]);
+
+  // Abre modal de Game Over quando HP chega a 0
+  useEffect(() => {
+    if (heroHp <= 0) setOpenGameOver(true);
+  }, [heroHp]);
 
   useEffect(() => {
     const container = arenaRef.current;
@@ -143,9 +150,26 @@ export default function Game() {
   }
 
   const HeaderIcon = (icons as Record<string, LucideIcon>)[gameMeta.icon] || (icons as Record<string, LucideIcon>)["Swords"] || icons["Gamepad"];
+  // Pequeno feedback quando nível sobe
+  const prevLevelRef = useRef<number>(level);
+  useEffect(() => {
+    if (level > prevLevelRef.current) {
+      toast.success(`Nível ${level} alcançado! +1 ponto para distribuir`);
+      prevLevelRef.current = level;
+    }
+  }, [level]);
+
+  const handleRestart = () => {
+  useArenaStore.getState().resetAll();
+    setOpenGameOver(false);
+    toast("Novo herói pronto!");
+  };
+
+  // Using advanced bars; no need for separate smoothed percentages here
 
   return (
     <div className="container mx-auto max-w-6xl px-4 py-6 space-y-4 min-h-[100svh] md:h-screen overflow-auto md:overflow-hidden flex flex-col">
+  <GameOverModal open={openGameOver} onClose={() => setOpenGameOver(false)} onRestart={handleRestart} />
       <style jsx global>{`
         @keyframes faHitFlash { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
         .fa-hit-flash { animation: faHitFlash 220ms ease-in-out; }
@@ -157,6 +181,16 @@ export default function Game() {
   .fa-spark { position: absolute; width: 6px; height: 6px; border-radius: 9999px; background: radial-gradient(circle, rgba(255,255,255,1), rgba(103,232,249,0.9)); animation: faSparkOut 420ms ease-out forwards; }
   @keyframes faBreath { 0% { transform: scale(1); opacity: .25; } 50% { transform: scale(1.06); opacity: .45; } 100% { transform: scale(1); opacity: .25; } }
   .fa-ring-pulse { position: absolute; inset: -4px; border-radius: 9999px; box-shadow: 0 0 0 2px rgba(59,130,246,0.35), inset 0 0 0 1px rgba(255,255,255,0.12); animation: faBreath 2200ms ease-in-out infinite; pointer-events: none; }
+  /* HP/Xp bar effects */
+  .fa-hp-damage { background: radial-gradient(120px 80px at 50% 50%, rgba(255,0,0,0.15), transparent 60%); animation: faHpDamage 280ms ease-out; pointer-events: none; }
+  @keyframes faHpDamage { 0% { opacity: .9 } 100% { opacity: 0 } }
+  .fa-hp-heal { background: radial-gradient(120px 80px at 50% 50%, rgba(16,185,129,0.18), transparent 60%); animation: faHpHeal 320ms ease-out; pointer-events: none; }
+  @keyframes faHpHeal { 0% { opacity: .8 } 100% { opacity: 0 } }
+  .fa-xp-shimmer { position: absolute; inset: 0; background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,.18) 18%, transparent 36%); background-size: 220% 100%; opacity: 0; pointer-events: none; }
+  .fa-xp-shimmer.is-on { animation: faXpShimmer 650ms ease-out forwards; }
+  @keyframes faXpShimmer { 0% { opacity: 0; background-position: 120% 0 } 10% { opacity: .8 } 100% { opacity: 0; background-position: -120% 0 } }
+  .fa-xp-lvlup { animation: faXpPulse 700ms ease-out; box-shadow: 0 0 0 1px rgba(99,102,241,.35) inset; }
+  @keyframes faXpPulse { 0% { filter: saturate(1) brightness(1) } 50% { filter: saturate(1.4) brightness(1.2) } 100% { filter: saturate(1) brightness(1) } }
   /* Grid background for spawn container */
         .fa-grid { background-image:
           linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
@@ -205,14 +239,14 @@ export default function Game() {
             <SheetHeader>
               <SheetTitle>Confirmar Reinício</SheetTitle>
               <SheetDescription>
-                Você perderá o herói atual — atributos/skills/XP. Ouro, Gemas e Arena permanecem.
+                Reiniciar recomeça tudo do zero. Você perderá progresso, ouro e gemas.
               </SheetDescription>
             </SheetHeader>
             <SheetFooter>
               <Button
                 variant="destructive"
                 onClick={() => {
-                  reroll();
+                  useArenaStore.getState().resetAll();
                   setOpenReroll(false);
                 }}
               >
@@ -258,7 +292,7 @@ export default function Game() {
                 </div>
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[11px] text-muted-foreground">HP</span>
-                  <Progress value={(heroHp / heroMaxHp) * 100} className="h-2 flex-1" />
+                  <div className="flex-1"><HpBar current={heroHp} max={heroMaxHp} height={8} /></div>
                   <span className="text-[11px] tabular-nums">{Math.round(heroHp)} / {Math.round(heroMaxHp)}</span>
                 </div>
               </div>
@@ -269,7 +303,7 @@ export default function Game() {
                 <span className="text-muted-foreground">Experiência</span>
                 <span className="text-muted-foreground">{Math.round(xp * 100)}%</span>
               </div>
-              <Progress value={xp * 100} />
+              <XpBar value={xp} level={level} />
             </div>
 
             <div className="flex items-center justify-between">
@@ -490,7 +524,7 @@ export default function Game() {
                                 <span>Vida</span>
                                 <span className="tabular-nums">{Math.max(0, Math.round(e.hp))} / {Math.round(e.maxHp)}</span>
                               </div>
-                              <Progress value={(e.hp / e.maxHp) * 100} className="h-2" />
+                              <HpBar current={e.hp} max={e.maxHp} height={8} />
                             </div>
                           </div>
                           </div>

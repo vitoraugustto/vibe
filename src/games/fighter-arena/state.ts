@@ -23,6 +23,8 @@ export type Enemy = {
   nextAt: number;
   dpsHint?: number;
   agi?: number;
+  dying?: boolean;
+  deadAt?: number;
 };
 
 export type FloatNumber = {
@@ -72,6 +74,7 @@ export type ArenaState = {
   pushFloat: (f: Omit<FloatNumber, "id">) => void;
   tick: (now: number) => void;
   startCombatLoop: () => () => void;
+  resetAll: () => void;
 };
 
 function rand(min: number, max: number) {
@@ -83,22 +86,31 @@ function adjustedCooldownFromAGI(agi: number) {
   return Math.max(50, Math.round(1800 * Math.pow(0.99, Math.max(0, agi || 0))));
 }
 
+function baseDefaults() {
+  const baseVIT = 6;
+  const baseAGI = 6;
+  const heroMaxHp = maxHpFromVIT(baseVIT);
+  return {
+    gold: 0,
+    gems: 0,
+    heroClass: "Guerreiro" as const,
+    level: 1,
+    xp: 0,
+    hasNecromancy: false,
+    attrs: { STR: 6, AGI: baseAGI, INT: 6, VIT: baseVIT, DEF: 4, LCK: 4 } as Attrs,
+    upPoints: 0,
+    forgeCount: 0,
+    enemies: [] as Enemy[],
+    heroHp: heroMaxHp,
+    heroMaxHp,
+    heroNextAt: Date.now() + Math.max(50, Math.round(1800 * Math.pow(0.99, Math.max(0, baseAGI)))) ,
+    nextSpawnAt: Date.now() + 5000,
+    floats: [] as FloatNumber[],
+  };
+}
+
 export const useArenaStore = create<ArenaState>((set, get) => ({
-  gold: 0,
-  gems: 0,
-  heroClass: "Guerreiro",
-  level: 1,
-  xp: 0.2,
-  hasNecromancy: false,
-  attrs: { STR:6, AGI:6, INT:6, VIT:6, DEF:4, LCK:4 },
-  upPoints: 0,
-  forgeCount: 0,
-  enemies: [],
-  heroHp: maxHpFromVIT(6),
-  heroMaxHp: maxHpFromVIT(6),
-  heroNextAt: Date.now() + adjustedCooldownFromAGI(6),
-  nextSpawnAt: Date.now() + 5000,
-  floats: [],
+  ...baseDefaults(),
   getForgeCost: () => {
     const s = get();
     const cost = Math.round(1 + Math.pow(s.forgeCount, 1.35) + s.level * 0.3);
@@ -167,24 +179,19 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   setGems: (n) => set({ gems: n }),
   addPoint: (attr) => set((s) => {
     if (s.upPoints <= 0) return s;
+    const nextAttrs = { ...s.attrs, [attr]: s.attrs[attr] + 1 } as Attrs;
+    // Se aumentar VIT, recalcula o HP máx do herói
+    const nextMax = maxHpFromVIT(nextAttrs.VIT);
     return {
       upPoints: s.upPoints - 1,
-      attrs: { ...s.attrs, [attr]: s.attrs[attr] + 1 },
+      attrs: nextAttrs,
+      heroMaxHp: nextMax,
+      heroHp: Math.min(s.heroHp, nextMax),
     } as Partial<ArenaState> as ArenaState;
   }),
   grantPoint: (n) => set((s) => ({ upPoints: Math.max(0, s.upPoints + n) })),
-  reroll: () => set((s) => ({
-    heroClass: "Guerreiro",
-    level: 1,
-    xp: 0,
-    hasNecromancy: false,
-    attrs: { STR:6, AGI:6, INT:6, VIT:6, DEF:4, LCK:4 },
-    upPoints: 0,
-    forgeCount: 0,
-    enemies: [],
-  nextSpawnAt: Date.now() + 5000,
-    gold: s.gold,
-    gems: s.gems,
+  reroll: () => set(() => ({
+    ...baseDefaults(),
   })),
   pushFloat: (f) => set((s) => ({
     floats: [
@@ -204,11 +211,12 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   }),
   tick: (now) => set((s) => {
     let { heroHp, heroNextAt, gold, gems, enemies, floats, nextSpawnAt } = s;
-    const { heroMaxHp, attrs, level } = s;
+    let { level, xp, upPoints } = s;
+    const { heroMaxHp, attrs } = s;
     // Remove floats expirados
     floats = floats.filter((f) => f.until > now);
     // Auto-spawn de monstros
-  if (now >= nextSpawnAt && enemies.length < 10) {
+    if (now >= nextSpawnAt && enemies.length < 10) {
       const pool = [
         { name: "Lobo", emoji: "🐺" },
         { name: "Goblin", emoji: "👾" },
@@ -235,67 +243,102 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
         nextAt: now + rand(900, 1800),
       };
       enemies = [...enemies, enemy];
-  nextSpawnAt = now + rand(6000, 10000);
+      nextSpawnAt = now + rand(6000, 10000);
     } else if (enemies.length >= 10 && now >= nextSpawnAt) {
       // reprograma quando atingir cap
-  nextSpawnAt = now + 3000;
+      nextSpawnAt = now + 3000;
     }
     // Herói ataca
-    if (enemies.length > 0 && now >= heroNextAt) {
-      // Escolhe alvo aleatório entre os vivos
-      const idx = Math.floor(Math.random() * enemies.length);
-      const enemy = { ...enemies[idx] };
-      const isCrit = Math.random() < critChance01(attrs.LCK);
-      let dmg = rollHeroDamage(attrs, isCrit);
-      dmg = applyDefense(dmg, 0); // enemyDef=0
-      enemy.hp -= dmg;
-      floats.push({
-        x: Math.random() * 70 + 15,
-        y: Math.random() * 40 + 10,
-        text: `-${dmg}`,
-        color: isCrit ? "crit" : "hero",
-        until: now + 700,
-        id: `${now}-hero-${Math.random()}`,
-        target: "enemy",
-        targetId: enemy.id,
-      });
-      heroNextAt = now + adjustedCooldownFromAGI(attrs.AGI);
-      // Se morreu
-      if (enemy.hp <= 0) {
-        // Float de KO
+    if (enemies.some((e) => !e.dying && e.hp > 0) && now >= heroNextAt) {
+      // Escolhe alvo aleatório entre os vivos e não-dying
+      const live = enemies.map((e, i) => ({ e, i })).filter((x) => !x.e.dying && x.e.hp > 0);
+      if (live.length > 0) {
+        const pick = live[Math.floor(Math.random() * live.length)];
+        const idx = pick.i;
+        const enemy = { ...enemies[idx] };
+        const isCrit = Math.random() < critChance01(attrs.LCK);
+        let dmg = rollHeroDamage(attrs, isCrit);
+        dmg = applyDefense(dmg, 0); // enemyDef=0
+        enemy.hp -= dmg;
         floats.push({
-          x: 50,
-          y: 50,
-          text: `☠`,
-          color: "enemy",
-          until: now + 800,
-          id: `${now}-ko-${Math.random()}`,
+          x: Math.random() * 70 + 15,
+          y: Math.random() * 40 + 10,
+          text: `-${dmg}`,
+          color: isCrit ? "crit" : "hero",
+          until: now + 700,
+          id: `${now}-hero-${Math.random()}`,
           target: "enemy",
           targetId: enemy.id,
         });
-        // Recompensas
-        gold += Math.round(5 * goldMultFromINT(attrs.INT));
-        const gemChance = gemChancePct(level, attrs.LCK, attrs.INT);
-        if (Math.random() < gemChance / 100) {
-          gems += 1;
+        heroNextAt = now + adjustedCooldownFromAGI(attrs.AGI);
+
+        // Se morreu, marca como dying e agenda remoção após pequena demora
+        if (enemy.hp <= 0 && !enemy.dying) {
+          enemy.hp = 0;
+          enemy.dying = true;
+          enemy.deadAt = now + 450;
+
+          // Float de KO
           floats.push({
-            x: Math.random() * 70 + 15,
-            y: Math.random() * 40 + 10,
-            text: `💎`,
-            color: "heal",
-            until: now + 900,
-            id: `${now}-gem-${Math.random()}`,
-            target: "misc",
+            x: 50,
+            y: 50,
+            text: `☠`,
+            color: "enemy",
+            until: now + 800,
+            id: `${now}-ko-${Math.random()}`,
+            target: "enemy",
+            targetId: enemy.id,
           });
+
+          // Recompensas
+          gold += Math.round(5 * goldMultFromINT(attrs.INT));
+          const gemChance = gemChancePct(level, attrs.LCK, attrs.INT);
+          if (Math.random() < gemChance / 100) {
+            gems += 1;
+            floats.push({
+              x: Math.random() * 70 + 15,
+              y: Math.random() * 40 + 10,
+              text: `💎`,
+              color: "heal",
+              until: now + 900,
+              id: `${now}-gem-${Math.random()}`,
+              target: "misc",
+            });
+          }
+
+          // Experiência e Level Up (sistema fracionado 0..1)
+          const enemyLevel = enemy.level ?? 1;
+          const xpGain = 18 + enemyLevel * 8;
+          const xpNeed = 60 + level * 15;
+          xp = xp + xpGain / Math.max(1, xpNeed);
+          while (xp >= 1) {
+            xp -= 1;
+            level += 1;
+            upPoints += 1; // 1 ponto por nível
+            // Feedback visual
+            floats.push({
+              x: 50,
+              y: 20 + Math.random() * 20,
+              text: `LVL ${level}!`,
+              color: "heal",
+              until: now + 1000,
+              id: `${now}-lvl-${Math.random()}`,
+              target: "hero",
+            });
+          }
         }
-        enemies = enemies.filter((e, i) => i !== idx);
-      } else {
+
+        // Persiste o inimigo atualizado (vivo ou morrendo)
         enemies = enemies.map((e, i) => (i === idx ? enemy : e));
       }
     }
+
+    // Remoção retardada de inimigos mortos (após animação)
+    enemies = enemies.filter((e) => !(e.dying && (e.deadAt ?? 0) <= now));
     // Inimigos atacam
     for (let i = 0; i < enemies.length; ++i) {
       const e = enemies[i];
+      if (e.dying) continue; // não atacam durante animação de morte
       if (now >= e.nextAt) {
         let dmgIn = Math.max(1, Math.round(8 + (e.maxHp * 0.06)));
         dmgIn = applyDefense(dmgIn, attrs.DEF);
@@ -319,7 +362,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     }
     // Clamp heroHp
     heroHp = Math.max(0, Math.min(heroHp, heroMaxHp));
-  return { heroHp, heroMaxHp, heroNextAt, nextSpawnAt, gold, gems, enemies, floats };
+  return { heroHp, heroMaxHp, heroNextAt, nextSpawnAt, gold, gems, enemies, floats, level, xp, upPoints } as Partial<ArenaState> as ArenaState;
   }),
   startCombatLoop: () => {
     let stopped = false;
@@ -331,4 +374,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     loop();
     return () => { stopped = true; };
   },
+  resetAll: () => set(() => ({
+    ...baseDefaults(),
+  })),
 }));

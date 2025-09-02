@@ -45,6 +45,8 @@ export type ArenaState = {
   level: number;
   xp: number;           // 0..1 (progresso visual por enquanto)
   hasNecromancy: boolean; // controla exibição da seção de aliados
+  // Skills
+  skills: Skill[];
   attrs: Attrs;
   upPoints: number;
   // Forge
@@ -53,6 +55,10 @@ export type ArenaState = {
   forge: () => void;
   // Skill
   buyNecromancy: () => "ok" | "no-gems" | "already";
+  getSkillCost: (id: SkillId) => number;
+  canBuySkill: (id: SkillId) => boolean;
+  purchaseSkill: (id: SkillId) => "ok" | "no-gems" | "maxed";
+  toggleSkill: (id: SkillId) => "ok" | "not-owned";
   // Arena
   enemies: Enemy[];
   spawnEnemy: () => "ok" | "cap";
@@ -97,6 +103,7 @@ function baseDefaults() {
     level: 1,
     xp: 0,
     hasNecromancy: false,
+  skills: skillDefaults(),
     attrs: { STR: 6, AGI: baseAGI, INT: 6, VIT: baseVIT, DEF: 4, LCK: 4 } as Attrs,
     upPoints: 0,
     forgeCount: 0,
@@ -107,6 +114,61 @@ function baseDefaults() {
     nextSpawnAt: Date.now() + 5000,
     floats: [] as FloatNumber[],
   };
+}
+
+export type SkillId = "necromancy" | "revive" | "regeneration";
+export type Skill = {
+  id: SkillId;
+  name: string;
+  desc: string;
+  level: number; // current level
+  maxLevel: number;
+  baseCost: number; // in gems, cost for level 1
+  scalable?: boolean; // if true, cost increases with level
+  toggle?: boolean; // has active toggle
+  active?: boolean; // current toggle state
+};
+
+function skillDefaults(): Skill[] {
+  return [
+    {
+      id: "necromancy",
+      name: "Necromancia",
+      desc: "Converte mortos em aliados.",
+      level: 0,
+      maxLevel: 1,
+      baseCost: 1,
+      scalable: false,
+      toggle: true,
+      active: false,
+    },
+    {
+      id: "revive",
+      name: "Reviver",
+      desc: "Ressuscita o herói (cargas).",
+      level: 0,
+      maxLevel: 3,
+      baseCost: 2,
+      scalable: true,
+      toggle: false,
+    },
+    {
+      id: "regeneration",
+      name: "Regeneração",
+      desc: "0,4% do HP máx × nível por segundo.",
+      level: 0,
+      maxLevel: 3,
+      baseCost: 1,
+      scalable: true,
+      toggle: false,
+    },
+  ];
+}
+
+function skillCostForNext(s: Skill): number {
+  if (!s.scalable) return s.baseCost;
+  // simple scaling: base + level
+  return s.baseCost + s.level;
 }
 
 export const useArenaStore = create<ArenaState>((set, get) => ({
@@ -131,10 +193,58 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     } as Partial<ArenaState> as ArenaState;
   }),
   buyNecromancy: () => {
+    // Back-compat: map to skills system
+    const res = get().purchaseSkill("necromancy");
+    if (res === "ok") return "ok";
+    if (res === "no-gems") return "no-gems";
+    // If maxed or already purchased, report already
+    return "already";
+  },
+  getSkillCost: (id) => {
     const s = get();
-    if (s.hasNecromancy) return "already";
-    if (s.gems < 1) return "no-gems";
-    set({ hasNecromancy: true, gems: s.gems - 1 });
+    const sk = s.skills.find((x) => x.id === id);
+    if (!sk) return 0;
+    return skillCostForNext(sk);
+  },
+  canBuySkill: (id) => {
+    const s = get();
+    const sk = s.skills.find((x) => x.id === id);
+    if (!sk) return false;
+    if (sk.level >= sk.maxLevel) return false;
+    const cost = skillCostForNext(sk);
+    return s.gems >= cost;
+  },
+  purchaseSkill: (id) => {
+    const s = get();
+    const idx = s.skills.findIndex((x) => x.id === id);
+    if (idx < 0) return "maxed";
+    const sk = s.skills[idx];
+    if (sk.level >= sk.maxLevel) return "maxed";
+    const cost = skillCostForNext(sk);
+    if (s.gems < cost) return "no-gems";
+    const next = { ...sk, level: sk.level + 1 } as Skill;
+    const skills = [...s.skills];
+    skills[idx] = next;
+    const patch: Partial<ArenaState> = { skills, gems: s.gems - cost };
+    // Side-effect: necromancy flips hasNecromancy when acquired
+    if (id === "necromancy" && next.level > 0) {
+      (patch as Partial<ArenaState>).hasNecromancy = true as unknown as never;
+    }
+    set(patch as ArenaState);
+    return "ok";
+  },
+  toggleSkill: (id) => {
+    const s = get();
+    const idx = s.skills.findIndex((x) => x.id === id);
+    if (idx < 0) return "not-owned";
+    const sk = s.skills[idx];
+    if (sk.level <= 0 || !sk.toggle) return "not-owned";
+    const next = { ...sk, active: !sk.active } as Skill;
+    const skills = [...s.skills];
+    skills[idx] = next;
+    // Mirror hasNecromancy to skill active if applicable
+    if (id === "necromancy") set({ skills, hasNecromancy: !!next.active });
+    else set({ skills });
     return "ok";
   },
   spawnEnemy: () => {
@@ -191,7 +301,7 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
   }),
   grantPoint: (n) => set((s) => ({ upPoints: Math.max(0, s.upPoints + n) })),
   reroll: () => set(() => ({
-    ...baseDefaults(),
+  ...baseDefaults(),
   })),
   pushFloat: (f) => set((s) => ({
     floats: [
@@ -375,6 +485,6 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     return () => { stopped = true; };
   },
   resetAll: () => set(() => ({
-    ...baseDefaults(),
+  ...baseDefaults(),
   })),
 }));

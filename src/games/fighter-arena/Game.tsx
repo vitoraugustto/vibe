@@ -27,12 +27,17 @@ export default function Game() {
     level,
     xp,
     hasNecromancy,
+  skills,
     attrs,
     upPoints,
     addPoint,
     getForgeCost,
     forge,
-    buyNecromancy,
+  // buyNecromancy, // superseded by skills UI
+  getSkillCost,
+  canBuySkill,
+  purchaseSkill,
+  toggleSkill,
     enemies,
     heroHp,
     heroMaxHp,
@@ -52,6 +57,7 @@ export default function Game() {
   const [heroHit, setHeroHit] = useState(false);
   const [monsterHits, setMonsterHits] = useState<Set<string>>(new Set());
   const lastFloatIdsRef = useRef<Set<string>>(new Set());
+  const hasBuyableSkill = skills.some((sk) => canBuySkill(sk.id));
 
   useEffect(() => {
     const dispose = startCombatLoop();
@@ -181,6 +187,12 @@ export default function Game() {
   .fa-spark { position: absolute; width: 6px; height: 6px; border-radius: 9999px; background: radial-gradient(circle, rgba(255,255,255,1), rgba(103,232,249,0.9)); animation: faSparkOut 420ms ease-out forwards; }
   @keyframes faBreath { 0% { transform: scale(1); opacity: .25; } 50% { transform: scale(1.06); opacity: .45; } 100% { transform: scale(1); opacity: .25; } }
   .fa-ring-pulse { position: absolute; inset: -4px; border-radius: 9999px; box-shadow: 0 0 0 2px rgba(59,130,246,0.35), inset 0 0 0 1px rgba(255,255,255,0.12); animation: faBreath 2200ms ease-in-out infinite; pointer-events: none; }
+  /* Upgrade buttons glow when points available */
+  @keyframes faGlowPulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,.45), 0 0 0 0 rgba(255,255,255,.14) } 50% { box-shadow: 0 0 0 6px rgba(16,185,129,.06), 0 0 0 1.5px rgba(255,255,255,.18) } 100% { box-shadow: 0 0 0 0 rgba(16,185,129,.0), 0 0 0 0 rgba(255,255,255,0) } }
+  .fa-upbtn-glow { animation: faGlowPulse 1.6s ease-in-out infinite; }
+  .fa-upbtn { background-image: linear-gradient(to bottom right, rgba(16,185,129,0.20), rgba(16,185,129,0.10)); border-color: rgba(16,185,129,0.35); color: rgb(167,243,208); }
+  .fa-upbtn:hover { background-image: linear-gradient(to bottom right, rgba(16,185,129,0.30), rgba(16,185,129,0.18)); }
+  .fa-upbtn:disabled { opacity: .6; filter: grayscale(.2); }
   /* HP/Xp bar effects */
   .fa-hp-damage { background: radial-gradient(120px 80px at 50% 50%, rgba(255,0,0,0.15), transparent 60%); animation: faHpDamage 280ms ease-out; pointer-events: none; }
   @keyframes faHpDamage { 0% { opacity: .9 } 100% { opacity: 0 } }
@@ -191,6 +203,11 @@ export default function Game() {
   @keyframes faXpShimmer { 0% { opacity: 0; background-position: 120% 0 } 10% { opacity: .8 } 100% { opacity: 0; background-position: -120% 0 } }
   .fa-xp-lvlup { animation: faXpPulse 700ms ease-out; box-shadow: 0 0 0 1px rgba(99,102,241,.35) inset; }
   @keyframes faXpPulse { 0% { filter: saturate(1) brightness(1) } 50% { filter: saturate(1.4) brightness(1.2) } 100% { filter: saturate(1) brightness(1) } }
+  /* Skills trigger button */
+  @keyframes faSkillGlow { 0% { box-shadow: 0 0 0 0 rgba(56,189,248,.35), 0 0 0 0 rgba(255,255,255,.12) } 50% { box-shadow: 0 0 0 6px rgba(56,189,248,.06), 0 0 0 1.5px rgba(255,255,255,.16) } 100% { box-shadow: 0 0 0 0 rgba(56,189,248,0), 0 0 0 0 rgba(255,255,255,0) } }
+  .fa-skillbtn { background-image: linear-gradient(to bottom right, rgba(99,102,241,0.18), rgba(56,189,248,0.12)); border-color: rgba(99,102,241,0.35); }
+  .fa-skillbtn:hover { background-image: linear-gradient(to bottom right, rgba(99,102,241,0.26), rgba(56,189,248,0.18)); }
+  .fa-skillbtn-glow { animation: faSkillGlow 1.6s ease-in-out infinite; }
   /* Grid background for spawn container */
         .fa-grid { background-image:
           linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
@@ -331,11 +348,12 @@ export default function Game() {
                   <Button
                     size="sm"
                     variant="secondary"
+                    className={`h-7 px-2.5 border ${upPoints > 0 ? "fa-upbtn fa-upbtn-glow" : ""}`}
                     aria-label={`Aumentar ${a.key}`}
                     disabled={upPoints <= 0}
                     onClick={() => addPoint(a.key)}
                   >
-                    +
+                    <icons.Plus className="size-4" />
                   </Button>
                 </div>
               ))}
@@ -355,6 +373,7 @@ export default function Game() {
               <Button
                 aria-label="Forjar"
                 className="h-8 gap-2 hover:scale-[.99] transition"
+                disabled={gold < getForgeCost()}
                 onClick={() => {
                   const before = gold;
                   forge();
@@ -371,53 +390,78 @@ export default function Game() {
               </Button>
               <Sheet open={openSkills} onOpenChange={setOpenSkills}>
                 <SheetTrigger asChild>
-                  <Button variant="secondary" className="h-8 gap-2 hover:scale-[.99] transition">
-                    <icons.Wand className="size-4" />
+                  <Button
+                    aria-label="Habilidades"
+                    variant="secondary"
+                    className={`h-8 gap-2 hover:scale-[.99] transition rounded-md border px-3 ${hasBuyableSkill ? "fa-skillbtn fa-skillbtn-glow" : "fa-skillbtn"}`}
+                  >
+                    <icons.Wand className="size-4 text-indigo-300" />
                     <span>Habilidades</span>
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="right">
                   <SheetHeader>
                     <SheetTitle>Habilidades do Herói</SheetTitle>
-                    <SheetDescription>
-                      As habilidades serão configuráveis em breve. Abaixo, ideias em placeholder:
-                    </SheetDescription>
+                    <SheetDescription>Gaste gemas para desbloquear e evoluir habilidades.</SheetDescription>
                   </SheetHeader>
-                  <div className="px-4 pb-4 space-y-3 text-sm">
-                    <div>
-                      <div className="font-medium">Duplicar status</div>
-                      <div className="text-muted-foreground">Duplica um atributo escolhido — máx 3 usos.</div>
-                    </div>
-                    <div>
-                      <div className="font-medium">Voltar à Vida (Revive)</div>
-                      <div className="text-muted-foreground">Ressuscita o herói — até 3 cargas.</div>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-medium">Necromante</div>
-                        <div className="text-muted-foreground">Converte mortos em aliados. Custa 1 💎.</div>
+                  <div className="px-4 pb-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">Gemas disponíveis</div>
+                      <div className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs">
+                        <icons.Gem className="size-3 text-cyan-300" />
+                        <span className="font-semibold">{gems}</span>
                       </div>
-                      <Button
-                        aria-label="Ativar Necromante"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          const res = buyNecromancy();
-                          if (res === "ok") toast.success("Necromancia ativada");
-                          else if (res === "no-gems") toast.error("Você precisa de 1 💎");
-                          else toast("Já está ativo");
-                        }}
-                      >
-                        Ativar
-                      </Button>
                     </div>
-                    <div>
-                      <div className="font-medium">Regeneração</div>
-                      <div className="text-muted-foreground">0,4% do HP máx × nível por segundo.</div>
-                    </div>
-                    <div>
-                      <div className="font-medium">Sanguessuga (Lifesteal)</div>
-                      <div className="text-muted-foreground">2% × nível do dano causado.</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {skills.map((sk) => {
+                        const canBuy = canBuySkill(sk.id);
+                        const cost = getSkillCost(sk.id);
+                        const isMax = sk.level >= sk.maxLevel;
+                        const hasAny = sk.level > 0;
+                        return (
+                          <div key={sk.id} className="rounded-lg p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5">
+                            <div className="rounded-[10px] border border-border/50 ring-1 ring-inset ring-muted/30 bg-background/60 shadow-sm p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="text-sm font-medium">{sk.name}</div>
+                                  <div className="text-xs text-muted-foreground">{sk.desc}</div>
+                                </div>
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">LV {sk.level}/{sk.maxLevel}</Badge>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                {!isMax && (
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    disabled={!canBuy}
+                                    onClick={() => {
+                                      const r = purchaseSkill(sk.id);
+                                      if (r === "ok") toast.success(`${sk.name} melhorada`);
+                                      else if (r === "no-gems") toast.error("Gemas insuficientes");
+                                      else toast("Nível máximo atingido");
+                                    }}
+                                  >
+                                    <icons.Gem className="size-3 mr-1 text-cyan-300" />
+                                    Melhorar ({cost})
+                                  </Button>
+                                )}
+                                {sk.toggle && hasAny && (
+                                  <Button
+                                    size="sm"
+                                    variant={sk.active ? "default" : "outline"}
+                                    onClick={() => {
+                                      const r = toggleSkill(sk.id);
+                                      if (r === "ok") toast(`${sk.name} ${sk.active ? "desativada" : "ativada"}`);
+                                    }}
+                                  >
+                                    {sk.active ? "Desativar" : "Ativar"}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </SheetContent>

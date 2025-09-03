@@ -12,10 +12,11 @@ import {
   goldMultFromINT,
   gemChancePct,
 } from "@/games/fighter-arena/logic";
-import { Button, Card, CardContent, Badge, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter, SheetTrigger, Tooltip, TooltipContent, TooltipTrigger, Separator } from "@/components";
+import { Button, Card, CardContent, Badge, Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger, Tooltip, TooltipContent, TooltipTrigger, Separator } from "@/components";
 import { SectionCard, type SectionCardAction } from "./components/SectionCard";
 import { HpBar, XpBar } from "./components/Bars";
 import GameOverModal from "./components/GameOverModal";
+import ClassSelectionModal, { type HeroClass, getClassIcon, getClassColor } from "./components/ClassSelectionModal";
 import { icons, LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,11 +44,12 @@ export default function Game() {
     heroMaxHp,
     floats,
     startCombatLoop,
+    setHeroClass,
   } = useArenaStore();
 
-  const [openReroll, setOpenReroll] = useState(false);
   const [openSkills, setOpenSkills] = useState(false);
   const [openGameOver, setOpenGameOver] = useState(false);
+  const [openClassSelection, setOpenClassSelection] = useState(false);
 
   const arenaRef = useRef<HTMLDivElement | null>(null);
   const fighterAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -156,6 +158,8 @@ export default function Game() {
   }
 
   const HeaderIcon = (icons as Record<string, LucideIcon>)[gameMeta.icon] || (icons as Record<string, LucideIcon>)["Swords"] || icons["Gamepad"];
+  const HeroIcon = (icons as Record<string, LucideIcon>)[getClassIcon(heroClass)] || HeaderIcon;
+  const heroClassColor = getClassColor(heroClass);
   // Pequeno feedback quando nível sobe
   const prevLevelRef = useRef<number>(level);
   useEffect(() => {
@@ -166,16 +170,27 @@ export default function Game() {
   }, [level]);
 
   const handleRestart = () => {
-  useArenaStore.getState().resetAll();
     setOpenGameOver(false);
-    toast("Novo herói pronto!");
+    setOpenClassSelection(true);
+  };
+
+  const handleClassSelection = (selectedClass: HeroClass) => {
+    useArenaStore.getState().resetAll();
+    setHeroClass(selectedClass);
+    toast(`Novo ${selectedClass} pronto!`);
   };
 
   // Using advanced bars; no need for separate smoothed percentages here
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-6 space-y-4 min-h-[100svh] md:h-screen overflow-auto md:overflow-hidden flex flex-col">
-  <GameOverModal open={openGameOver} onClose={() => setOpenGameOver(false)} onRestart={handleRestart} />
+    <div className="container mx-auto max-w-6xl px-2 sm:px-4 py-3 sm:py-6 space-y-3 sm:space-y-4 min-h-[100svh] md:h-screen overflow-auto md:overflow-hidden flex flex-col">
+      <GameOverModal open={openGameOver} onClose={() => setOpenGameOver(false)} onRestart={handleRestart} />
+      <ClassSelectionModal 
+        open={openClassSelection} 
+        onClose={() => setOpenClassSelection(false)} 
+        onSelectClass={handleClassSelection}
+        currentClass={heroClass}
+      />
       <style jsx global>{`
         @keyframes faHitFlash { 0% { filter: brightness(1); } 50% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
         .fa-hit-flash { animation: faHitFlash 220ms ease-in-out; }
@@ -216,32 +231,35 @@ export default function Game() {
           background-position: -1px -1px, -1px -1px;
         }
       `}</style>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <HeaderIcon className="size-5" />
-          <span className="font-semibold">Fighter Arena</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+          <HeaderIcon className="size-4 sm:size-5 shrink-0" />
+          <span className="font-semibold text-sm sm:text-base truncate">Fighter Arena</span>
         </div>
-        <Button asChild variant="secondary">
-          <Link href="/games">Voltar aos jogos</Link>
+        <Button asChild variant="secondary" size="sm" className="shrink-0 text-xs sm:text-sm">
+          <Link href="/games">
+            <span className="hidden sm:inline">Voltar aos jogos</span>
+            <span className="sm:hidden">Voltar</span>
+          </Link>
         </Button>
       </div>
 
       <Card className="border-muted/40">
-        <CardContent className="flex flex-wrap items-center justify-end gap-3 py-1">
-          <div className="flex items-center">
+        <CardContent className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 py-1 px-2 sm:px-6">
+          <div className="flex items-center w-full sm:w-auto justify-center">
             <div className="inline-flex items-stretch divide-x rounded-lg border bg-background/60 ring-1 ring-inset ring-muted/30 shadow-sm">
-              <div className="flex items-center gap-2 px-3 h-8">
-                <icons.Coins className="size-4 text-yellow-400" />
+              <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 h-7 sm:h-8">
+                <icons.Coins className="size-3 sm:size-4 text-yellow-400 shrink-0" />
                 <div className="leading-tight">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Ouro</div>
-                  <div className="text-sm tabular-nums font-semibold">{gold}</div>
+                  <div className="text-[9px] sm:text-[10px] uppercase tracking-wide text-muted-foreground/80">Ouro</div>
+                  <div className="text-xs sm:text-sm tabular-nums font-semibold">{gold}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 px-3 h-8">
-                <icons.Gem className="size-4 text-cyan-300" />
+              <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 h-7 sm:h-8">
+                <icons.Gem className="size-3 sm:size-4 text-cyan-300 shrink-0" />
                 <div className="leading-tight">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Gemas</div>
-                  <div className="text-sm tabular-nums font-semibold">{gems}</div>
+                  <div className="text-[9px] sm:text-[10px] uppercase tracking-wide text-muted-foreground/80">Gemas</div>
+                  <div className="text-xs sm:text-sm tabular-nums font-semibold">{gems}</div>
                 </div>
               </div>
             </div>
@@ -249,74 +267,52 @@ export default function Game() {
         </CardContent>
       </Card>
 
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 min-h-0 overflow-visible md:overflow-hidden">
-        {/* Reroll sheet lives here so header action button can just open it */}
-        <Sheet open={openReroll} onOpenChange={setOpenReroll}>
-          <SheetContent side="right">
-            <SheetHeader>
-              <SheetTitle>Confirmar Reinício</SheetTitle>
-              <SheetDescription>
-                Reiniciar recomeça tudo do zero. Você perderá progresso, ouro e gemas.
-              </SheetDescription>
-            </SheetHeader>
-            <SheetFooter>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  useArenaStore.getState().resetAll();
-                  setOpenReroll(false);
-                }}
-              >
-                Confirmar
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 flex-1 min-h-0 overflow-visible lg:overflow-hidden">
 
         <SectionCard
           className="border-muted/40"
-          title={<><Badge variant="secondary" className="rounded-sm">{heroClass}</Badge><span className="text-sm text-muted-foreground">LVL {level}</span></>}
+          title={<><Badge variant="secondary" className={`rounded-sm border ${heroClassColor}`}>{heroClass}</Badge><span className="text-sm text-muted-foreground">LVL {level}</span></>}
           actions={([
             {
               icon: icons.RotateCcw,
               text: "Reiniciar",
               variant: "destructive",
-              onClick: () => setOpenReroll(true),
+              onClick: () => setOpenClassSelection(true),
             },
           ]) as SectionCardAction[]}
           contentClassName=""
         >
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             <div className="rounded-lg p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5">
-              <div className="rounded-[10px] border border-border/50 ring-1 ring-inset ring-muted/30 bg-background/60 shadow-sm p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div ref={fighterAnchorRef} className={`relative size-10 rounded-full bg-muted/50 border flex items-center justify-center ${heroHit ? "fa-hit-flash" : ""}`} aria-hidden>
+              <div className="rounded-[10px] border border-border/50 ring-1 ring-inset ring-muted/30 bg-background/60 shadow-sm p-2 sm:p-3">
+                <div className="flex items-center justify-between gap-2 sm:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                    <div ref={fighterAnchorRef} className={`relative size-8 sm:size-10 rounded-full bg-muted/50 border flex items-center justify-center shrink-0 ${heroHit ? "fa-hit-flash" : ""}`} aria-hidden>
                       <span className="fa-ring-pulse" />
                       {heroHit && <HitSparks count={5} />}
-                      <HeaderIcon className="size-5 text-muted-foreground" />
+                      <HeroIcon className={`size-4 sm:size-5 ${heroClassColor}`} />
                     </div>
-                    <div className="leading-tight">
-                      <div className="text-sm font-semibold">Fighter</div>
-                      <div className="text-[11px] text-muted-foreground">{heroClass} • Nível {level}</div>
+                    <div className="leading-tight min-w-0">
+                      <div className="text-xs sm:text-sm font-semibold">Fighter</div>
+                      <div className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{heroClass} • Nível {level}</div>
                     </div>
                   </div>
-                  <div className="hidden sm:flex items-center gap-2">
-                    <div className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"><span className="text-muted-foreground">APS</span><span className="font-semibold text-foreground">{apsFromAGI(attrs.AGI).toFixed(2)}</span></div>
-                    <div className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"><span className="text-muted-foreground">DMG</span><span className="font-semibold text-foreground">{Math.round(heroBaseDamage(attrs))}</span></div>
-                    <div className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"><span className="text-muted-foreground">CRIT</span><span className="font-semibold text-foreground">{critChancePct(attrs.LCK).toFixed(1)}%</span></div>
+                  <div className="hidden md:flex items-center gap-1 lg:gap-2 shrink-0">
+                    <div className="inline-flex items-center gap-1 rounded-md border px-1.5 lg:px-2 py-1 text-[10px] lg:text-xs"><span className="text-muted-foreground">APS</span><span className="font-semibold text-foreground">{apsFromAGI(attrs.AGI).toFixed(2)}</span></div>
+                    <div className="inline-flex items-center gap-1 rounded-md border px-1.5 lg:px-2 py-1 text-[10px] lg:text-xs"><span className="text-muted-foreground">DMG</span><span className="font-semibold text-foreground">{Math.round(heroBaseDamage(attrs))}</span></div>
+                    <div className="inline-flex items-center gap-1 rounded-md border px-1.5 lg:px-2 py-1 text-[10px] lg:text-xs"><span className="text-muted-foreground">CRIT</span><span className="font-semibold text-foreground">{critChancePct(attrs.LCK).toFixed(1)}%</span></div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground">HP</span>
-                  <div className="flex-1"><HpBar current={heroHp} max={heroMaxHp} height={8} /></div>
-                  <span className="text-[11px] tabular-nums">{Math.round(heroHp)} / {Math.round(heroMaxHp)}</span>
+                <div className="mt-2 sm:mt-3 flex items-center gap-2">
+                  <span className="text-[10px] sm:text-[11px] text-muted-foreground">HP</span>
+                  <div className="flex-1"><HpBar current={heroHp} max={heroMaxHp} height={6} /></div>
+                  <span className="text-[10px] sm:text-[11px] tabular-nums">{Math.round(heroHp)} / {Math.round(heroMaxHp)}</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
+            <div className="space-y-1 sm:space-y-2">
+              <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-muted-foreground">Experiência</span>
                 <span className="text-muted-foreground">{Math.round(xp * 100)}%</span>
               </div>
@@ -324,9 +320,9 @@ export default function Game() {
             </div>
 
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Atributos {upPoints > 0 && <span className="text-muted-foreground">(+{upPoints})</span>}</h3>
+              <h3 className="text-xs sm:text-sm font-medium">Atributos {upPoints > 0 && <span className="text-muted-foreground">(+{upPoints})</span>}</h3>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-2 text-xs sm:text-sm">
               {([
                 { key: "STR", label: "STR", desc: "Força: aumenta dano base." },
                 { key: "AGI", label: "AGI", desc: "Agilidade: aumenta ataques/segundo (reduz cooldown exponencialmente)." },
@@ -335,44 +331,44 @@ export default function Game() {
                 { key: "DEF", label: "DEF", desc: "Defesa: reduz dano recebido." },
                 { key: "LCK", label: "LCK", desc: "Sorte: aumenta chance de crítico e de 💎." },
               ] as const).map((a) => (
-                <div key={a.key} className="flex items-center justify-between rounded-md border px-2 py-1.5">
-                  <div className="flex items-center gap-2">
+                <div key={a.key} className="flex items-center justify-between rounded-md border px-1.5 sm:px-2 py-1 sm:py-1.5 min-w-0">
+                  <div className="flex items-center gap-1 sm:gap-2 min-w-0">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="cursor-help font-medium">{a.label}</span>
+                        <span className="cursor-help font-medium text-xs sm:text-sm">{a.label}</span>
                       </TooltipTrigger>
-                      <TooltipContent>{a.desc}</TooltipContent>
+                      <TooltipContent className="max-w-xs">{a.desc}</TooltipContent>
                     </Tooltip>
-                    <span className="text-muted-foreground">{attrs[a.key]}</span>
+                    <span className="text-muted-foreground text-xs sm:text-sm">{attrs[a.key]}</span>
                   </div>
                   <Button
                     size="sm"
                     variant="secondary"
-                    className={`h-7 px-2.5 border ${upPoints > 0 ? "fa-upbtn fa-upbtn-glow" : ""}`}
+                    className={`h-6 sm:h-7 px-1.5 sm:px-2.5 border shrink-0 ${upPoints > 0 ? "fa-upbtn fa-upbtn-glow" : ""}`}
                     aria-label={`Aumentar ${a.key}`}
                     disabled={upPoints <= 0}
                     onClick={() => addPoint(a.key)}
                   >
-                    <icons.Plus className="size-4" />
+                    <icons.Plus className="size-3 sm:size-4" />
                   </Button>
                 </div>
               ))}
             </div>
 
-            <Separator className="my-2" />
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Atributos Atuais</h3>
-              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <Separator className="my-1 sm:my-2" />
+            <div className="space-y-1 sm:space-y-2">
+              <h3 className="text-xs sm:text-sm font-medium">Atributos Atuais</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground">
                 <div className="flex items-center justify-between"><span>HP Máx</span><span className="font-medium text-foreground">{Math.round(maxHpFromVIT(attrs.VIT))}</span></div>
                 <div className="flex items-center justify-between"><span>x Ouro</span><span className="font-medium text-foreground">{goldMultFromINT(attrs.INT).toFixed(2)}x</span></div>
-                <div className="flex items-center justify-between"><span>Chance de 💎</span><span className="font-medium text-foreground">{gemChancePct(level, attrs.LCK, attrs.INT).toFixed(1)}%</span></div>
+                <div className="flex items-center justify-between col-span-1 sm:col-span-2"><span>Chance de 💎</span><span className="font-medium text-foreground">{gemChancePct(level, attrs.LCK, attrs.INT).toFixed(1)}%</span></div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
               <Button
                 aria-label="Forjar"
-                className="h-8 gap-2 hover:scale-[.99] transition"
+                className="h-7 sm:h-8 gap-1 sm:gap-2 hover:scale-[.99] transition text-xs sm:text-sm"
                 disabled={gold < getForgeCost()}
                 onClick={() => {
                   const before = gold;
@@ -385,17 +381,17 @@ export default function Game() {
                   }
                 }}
               >
-                <icons.Hammer className="size-4" />
-                <span>Forjar (💰 {getForgeCost()})</span>
+                <icons.Hammer className="size-3 sm:size-4" />
+                <span className="truncate">Forjar (💰 {getForgeCost()})</span>
               </Button>
               <Sheet open={openSkills} onOpenChange={setOpenSkills}>
                 <SheetTrigger asChild>
                   <Button
                     aria-label="Habilidades"
                     variant="secondary"
-                    className={`h-8 gap-2 hover:scale-[.99] transition rounded-md border px-3 ${hasBuyableSkill ? "fa-skillbtn fa-skillbtn-glow" : "fa-skillbtn"}`}
+                    className={`h-7 sm:h-8 gap-1 sm:gap-2 hover:scale-[.99] transition rounded-md border px-2 sm:px-3 text-xs sm:text-sm ${hasBuyableSkill ? "fa-skillbtn fa-skillbtn-glow" : "fa-skillbtn"}`}
                   >
-                    <icons.Wand className="size-4 text-indigo-300" />
+                    <icons.Wand className="size-3 sm:size-4 text-indigo-300" />
                     <span>Habilidades</span>
                   </Button>
                 </SheetTrigger>
@@ -489,7 +485,7 @@ export default function Game() {
 
   <SectionCard
           className="border-muted/40"
-          title={<span className="text-sm">Arena de Monstros</span>}
+          title={<span className="text-xs sm:text-sm">Arena de Monstros</span>}
           actions={([
             {
               icon: icons.Skull,
@@ -501,7 +497,7 @@ export default function Game() {
               },
             },
           ])}
-          contentClassName="h-full flex flex-col overflow-visible md:overflow-auto"
+          contentClassName="h-full flex flex-col overflow-visible lg:overflow-auto"
         >
             <div ref={arenaRef} className="relative flex-1 flex flex-col">
               {/* hero anchor now points to Fighter avatar outside; kept overlay simple */}
@@ -528,47 +524,47 @@ export default function Game() {
                 })}
               </div>
 
-              <div className="rounded-xl border-2 border-dashed border-muted-foreground/40 bg-muted/5 ring-1 ring-inset ring-muted/30 p-3 flex-1 flex flex-col fa-grid">
+              <div className="rounded-xl border-2 border-dashed border-muted-foreground/40 bg-muted/5 ring-1 ring-inset ring-muted/30 p-2 sm:p-3 flex-1 flex flex-col fa-grid">
               {enemies.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">
+                <div className="py-8 sm:py-12 text-center text-xs sm:text-sm text-muted-foreground">
                   <div className="flex items-center justify-center gap-2">
-                    <icons.Skull className="size-4 opacity-70" />
+                    <icons.Skull className="size-3 sm:size-4 opacity-70" />
                     <span>Monstros spawnam aqui...</span>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                   {enemies.map((e) => {
                     const rarityRing = e.rarity === "elite" ? "ring-yellow-500/25 hover:ring-yellow-500/35 bg-yellow-500/5" : e.rarity === "berserk" ? "ring-red-500/25 hover:ring-red-500/35 bg-red-500/5" : "ring-muted/30 hover:ring-muted/40 bg-muted/10";
                     const rarityText = e.rarity === "elite" ? "text-yellow-300" : e.rarity === "berserk" ? "text-red-400" : "text-muted-foreground";
                     return (
-                      <div key={e.id} className="rounded-lg p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5 transition hover:translate-y-[1px]">
-                        <div className={`rounded-[12px] border border-border/50 ring-1 ring-inset shadow-sm hover:shadow-md ${rarityRing}`}>
-                          <div className="p-3 flex sm:items-center gap-3">
+                      <div key={e.id} className="rounded-lg p-[1px] sm:p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5 transition hover:translate-y-[1px]">
+                        <div className={`rounded-[8px] sm:rounded-[12px] border border-border/50 ring-1 ring-inset shadow-sm hover:shadow-md ${rarityRing}`}>
+                          <div className="p-2 sm:p-3 flex items-center gap-2 sm:gap-3">
                           <div
                             ref={(el) => { enemyRefs.current[e.id] = el; }}
-                            className={`relative size-12 sm:size-10 rounded-full bg-background/60 border flex items-center justify-center shrink-0 ${monsterHits.has(e.id) ? "fa-hit-flash" : ""}`}
+                            className={`relative size-8 sm:size-10 rounded-full bg-background/60 border flex items-center justify-center shrink-0 ${monsterHits.has(e.id) ? "fa-hit-flash" : ""}`}
                             aria-hidden
                           >
                             {monsterHits.has(e.id) && <HitSparks />}
-                            <span className="text-lg">{e.emoji}</span>
+                            <span className="text-sm sm:text-lg">{e.emoji}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 min-w-0">
-                              <span className="text-sm font-medium truncate">{e.name}</span>
-                              <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center justify-between gap-1 sm:gap-2 min-w-0">
+                              <span className="text-xs sm:text-sm font-medium truncate">{e.name}</span>
+                              <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                                 {typeof e.level === "number" && (
-                                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">LVL {e.level}</Badge>
+                                  <Badge variant="secondary" className="h-4 sm:h-5 px-1 sm:px-1.5 text-[8px] sm:text-[10px]">LVL {e.level}</Badge>
                                 )}
-                                <Badge variant="outline" className={`h-5 px-1.5 text-[10px] uppercase ${rarityText}`}>{e.rarity}</Badge>
+                                <Badge variant="outline" className={`h-4 sm:h-5 px-1 sm:px-1.5 text-[8px] sm:text-[10px] uppercase ${rarityText}`}>{e.rarity}</Badge>
                               </div>
                             </div>
-                            <div className="mt-2">
-                              <div className="mb-1 flex items-center justify-between text-[10px] text-muted-foreground">
+                            <div className="mt-1.5 sm:mt-2">
+                              <div className="mb-0.5 sm:mb-1 flex items-center justify-between text-[9px] sm:text-[10px] text-muted-foreground">
                                 <span>Vida</span>
                                 <span className="tabular-nums">{Math.max(0, Math.round(e.hp))} / {Math.round(e.maxHp)}</span>
                               </div>
-                              <HpBar current={e.hp} max={e.maxHp} height={8} />
+                              <HpBar current={e.hp} max={e.maxHp} height={6} />
                             </div>
                           </div>
                           </div>

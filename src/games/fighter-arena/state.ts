@@ -70,7 +70,9 @@ export type ArenaState = {
   setGems: (n: number) => void;
   addPoint: (attr: keyof Attrs) => void;
   grantPoint: (n: number) => void;
+  setHeroClass: (heroClass: "Guerreiro" | "Ladino" | "Mago" | "Guardião" | "Caçador" | "Paladino" | "Bárbaro" | "Arcanista" | "Monge") => void;
   reroll: () => void;     // stub: apenas zera heroClass/level/xp por enquanto
+  resetAll: () => void;
   heroHp: number;
   heroMaxHp: number;
   heroNextAt: number;
@@ -80,7 +82,6 @@ export type ArenaState = {
   pushFloat: (f: Omit<FloatNumber, "id">) => void;
   tick: (now: number) => void;
   startCombatLoop: () => () => void;
-  resetAll: () => void;
 };
 
 function rand(min: number, max: number) {
@@ -300,6 +301,9 @@ export const useArenaStore = create<ArenaState>((set, get) => ({
     } as Partial<ArenaState> as ArenaState;
   }),
   grantPoint: (n) => set((s) => ({ upPoints: Math.max(0, s.upPoints + n) })),
+  setHeroClass: (heroClass) => set(() => ({
+    heroClass,
+  })),
   reroll: () => set(() => ({
   ...baseDefaults(),
   })),

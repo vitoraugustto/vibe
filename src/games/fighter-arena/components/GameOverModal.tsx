@@ -16,10 +16,7 @@ export type GameOverModalProps = {
   onRestart: () => void;
 };
 
-export function GameOverModal({
-  open,
-  onRestart,
-}: GameOverModalProps) {
+export function GameOverModal({ open, onRestart }: GameOverModalProps) {
   return (
     <Dialog open={open} onOpenChange={() => {}} modal>
       <DialogContent
@@ -39,10 +36,7 @@ export function GameOverModal({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="pt-6">
-          <Button
-            onClick={onRestart}
-            className="w-full"
-          >
+          <Button onClick={onRestart} className="w-full">
             Escolher Classe
           </Button>
         </DialogFooter>

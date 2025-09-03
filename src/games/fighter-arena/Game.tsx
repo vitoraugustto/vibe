@@ -79,6 +79,7 @@ export default function Game() {
   const posMapRef = useRef<Record<string, { x: number; y: number }>>({});
   const [heroHit, setHeroHit] = useState(false);
   const [monsterHits, setMonsterHits] = useState<Set<string>>(new Set());
+  const [levelUpGlow, setLevelUpGlow] = useState(false);
   const lastFloatIdsRef = useRef<Set<string>>(new Set());
   const hasBuyableSkill = skills.some((sk) => canBuySkill(sk.id));
 
@@ -95,7 +96,6 @@ export default function Game() {
   useEffect(() => {
     const container = arenaRef.current;
     if (!container) return;
-    const cRect = container.getBoundingClientRect();
     const current = posMapRef.current;
 
     const next: Record<string, { x: number; y: number }> = {};
@@ -116,17 +116,24 @@ export default function Game() {
         continue;
       }
       let targetEl: HTMLElement | null = null;
+      let referenceContainer: HTMLElement = container;
+
       if (f.target === "enemy" && f.targetId) {
         targetEl = (enemyRefs.current[f.targetId] as HTMLElement) || null;
       } else if (f.target === "hero") {
         targetEl = fighterAnchorRef.current as HTMLElement | null;
+        referenceContainer = document.body; // Use o body como referência para hero floats
       } else {
         targetEl = container;
       }
+
       if (!targetEl) continue;
+
       const r = targetEl.getBoundingClientRect();
-      const cx = r.left - cRect.left + r.width / 2;
-      const cy = r.top - cRect.top + r.height / 2;
+      const refRect = referenceContainer.getBoundingClientRect();
+
+      const cx = r.left - refRect.left + r.width / 2;
+      const cy = r.top - refRect.top + r.height / 2;
       const { jx, jy } = offsetFromId(f.id);
       next[f.id] = { x: cx + jx, y: cy + jy - 16 };
     }
@@ -163,30 +170,15 @@ export default function Game() {
             }, 260);
             return n;
           });
+        } else if (f.target === "hero" && f.text.includes("LVL")) {
+          // Level up effect
+          setLevelUpGlow(true);
+          setTimeout(() => setLevelUpGlow(false), 2000);
         }
       }
     }
     lastFloatIdsRef.current = current;
   }, [floats]);
-
-  function HitSparks({ count = 6 }: { count?: number }) {
-    const items = Array.from({ length: count }).map((_, i) => {
-      const l = 10 + Math.random() * 80;
-      const t = 10 + Math.random() * 70;
-      return (
-        <span
-          key={i}
-          className="fa-spark"
-          style={{ left: `${l}%`, top: `${t}%` }}
-        />
-      );
-    });
-    return (
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {items}
-      </div>
-    );
-  }
 
   const HeaderIcon =
     (icons as Record<string, LucideIcon>)[gameMeta.icon] ||
@@ -221,10 +213,51 @@ export default function Game() {
 
   return (
     <div className="container mx-auto max-w-6xl px-2 sm:px-4 py-3 sm:py-6 space-y-3 sm:space-y-4 min-h-[100svh] md:h-screen overflow-auto md:overflow-hidden flex flex-col">
-      <GameOverModal
-        open={openGameOver}
-        onRestart={handleRestart}
-      />
+      {/* Floats globais para hero */}
+      <div className="fixed inset-0 pointer-events-none select-none z-50">
+        {floats
+          .filter((f) => f.target === "hero")
+          .map((f) => {
+            const p = floatPos[f.id];
+            const getDamageClass = () => {
+              if (f.color === "crit") return "fa-float-crit text-yellow-300";
+              if (f.text.includes("LVL")) return "fa-level-up-float";
+              if (f.color === "hero") return "fa-float fa-damage-hero";
+              if (f.color === "enemy") return "fa-float fa-damage-enemy";
+              if (f.color === "heal") return "fa-float fa-damage-heal";
+              if (f.text.includes("💎")) return "fa-float fa-damage-gem";
+              return "fa-float";
+            };
+
+            return (
+              <span
+                key={f.id}
+                className={`absolute left-0 top-0 ${getDamageClass()}`}
+                style={{
+                  left: (p ? p.x : 0) + "px",
+                  top: (p ? p.y : 0) + "px",
+                  transform: `translate(-50%, -10px)`,
+                  pointerEvents: "none",
+                  opacity: 0.98,
+                  fontSize: f.text.includes("LVL")
+                    ? "18px"
+                    : f.color === "crit"
+                    ? "16px"
+                    : "14px",
+                  fontWeight: f.text.includes("LVL")
+                    ? "800"
+                    : f.color === "crit"
+                    ? "800"
+                    : "700",
+                }}
+              >
+                {f.text}
+              </span>
+            );
+          })}
+      </div>
+
+      <GameOverModal open={openGameOver} onRestart={handleRestart} />
       <ClassSelectionModal
         open={openClassSelection}
         onSelectClass={handleClassSelection}
@@ -248,59 +281,53 @@ export default function Game() {
         @keyframes faFloatUp {
           0% {
             opacity: 0;
-            transform: translate(-50%, 8px) scale(0.95);
+            transform: translate(-50%, 12px) scale(0.8);
           }
-          20% {
+          15% {
             opacity: 1;
+            transform: translate(-50%, 6px) scale(1.1);
           }
           100% {
             opacity: 0;
-            transform: translate(-50%, -14px) scale(1);
+            transform: translate(-50%, -20px) scale(0.9);
           }
         }
         .fa-float {
           will-change: transform, opacity;
-          animation: faFloatUp 900ms ease-out forwards;
+          animation: faFloatUp 1100ms ease-out forwards;
+          font-weight: 700;
+          font-size: 14px;
+          text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6),
+            0 1px 2px rgba(0, 0, 0, 0.9);
+          filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.7));
         }
         @keyframes faCritPop {
           0% {
-            opacity: 0.25;
-            transform: translate(-50%, 6px) scale(0.9);
+            opacity: 0.3;
+            transform: translate(-50%, 8px) scale(0.7);
           }
-          40% {
+          25% {
             opacity: 1;
-            transform: translate(-50%, -4px) scale(1.22);
+            transform: translate(-50%, -2px) scale(1.3);
+          }
+          50% {
+            opacity: 1;
+            transform: translate(-50%, -6px) scale(1.4);
           }
           100% {
             opacity: 0;
-            transform: translate(-50%, -16px) scale(1);
+            transform: translate(-50%, -24px) scale(1);
           }
         }
         .fa-float-crit {
           will-change: transform, opacity;
-          animation: faCritPop 950ms ease-out forwards;
-        }
-        @keyframes faSparkOut {
-          0% {
-            opacity: 1;
-            transform: translate(0, 0) scale(1);
-          }
-          100% {
-            opacity: 0;
-            transform: translate(0, -8px) scale(0.8);
-          }
-        }
-        .fa-spark {
-          position: absolute;
-          width: 6px;
-          height: 6px;
-          border-radius: 9999px;
-          background: radial-gradient(
-            circle,
-            rgba(255, 255, 255, 1),
-            rgba(103, 232, 249, 0.9)
-          );
-          animation: faSparkOut 420ms ease-out forwards;
+          animation: faCritPop 1200ms ease-out forwards;
+          font-weight: 800;
+          font-size: 16px;
+          text-shadow: 0 0 4px rgba(0, 0, 0, 0.9),
+            0 0 8px rgba(255, 215, 0, 0.6), 0 0 12px rgba(255, 215, 0, 0.4),
+            0 2px 4px rgba(0, 0, 0, 1);
+          filter: drop-shadow(0 0 3px rgba(255, 215, 0, 0.8));
         }
         @keyframes faBreath {
           0% {
@@ -328,15 +355,15 @@ export default function Game() {
         /* Upgrade buttons glow when points available */
         @keyframes faGlowPulse {
           0% {
-            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45),
-              0 0 0 0 rgba(255, 255, 255, 0.14);
+            box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.5),
+              0 0 0 0 rgba(255, 255, 255, 0.16);
           }
           50% {
-            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.06),
-              0 0 0 1.5px rgba(255, 255, 255, 0.18);
+            box-shadow: 0 0 0 6px rgba(20, 184, 166, 0.08),
+              0 0 0 1.5px rgba(255, 255, 255, 0.2);
           }
           100% {
-            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0),
+            box-shadow: 0 0 0 0 rgba(20, 184, 166, 0),
               0 0 0 0 rgba(255, 255, 255, 0);
           }
         }
@@ -346,17 +373,17 @@ export default function Game() {
         .fa-upbtn {
           background-image: linear-gradient(
             to bottom right,
-            rgba(16, 185, 129, 0.2),
-            rgba(16, 185, 129, 0.1)
+            rgba(20, 184, 166, 0.25),
+            rgba(20, 184, 166, 0.15)
           );
-          border-color: rgba(16, 185, 129, 0.35);
-          color: rgb(167, 243, 208);
+          border-color: rgba(20, 184, 166, 0.4);
+          color: rgb(153, 246, 228);
         }
         .fa-upbtn:hover {
           background-image: linear-gradient(
             to bottom right,
-            rgba(16, 185, 129, 0.3),
-            rgba(16, 185, 129, 0.18)
+            rgba(20, 184, 166, 0.35),
+            rgba(20, 184, 166, 0.25)
           );
         }
         .fa-upbtn:disabled {
@@ -442,6 +469,57 @@ export default function Game() {
             filter: saturate(1) brightness(1);
           }
         }
+
+        /* Level up glow effect */
+        @keyframes faLevelUpGlow {
+          0% {
+            box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.6),
+              0 0 0 0 rgba(255, 255, 255, 0.2);
+            filter: brightness(1);
+          }
+          50% {
+            box-shadow: 0 0 0 8px rgba(20, 184, 166, 0.2),
+              0 0 0 2px rgba(255, 255, 255, 0.3);
+            filter: brightness(1.3);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(20, 184, 166, 0),
+              0 0 0 0 rgba(255, 255, 255, 0);
+            filter: brightness(1);
+          }
+        }
+        .fa-level-up-glow {
+          animation: faLevelUpGlow 2000ms ease-out;
+        }
+
+        /* Enhanced level up float */
+        @keyframes faLevelUpFloat {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, 15px) scale(0.8);
+          }
+          20% {
+            opacity: 1;
+            transform: translate(-50%, 5px) scale(1.2);
+          }
+          80% {
+            opacity: 1;
+            transform: translate(-50%, -15px) scale(1.1);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -30px) scale(0.9);
+          }
+        }
+        .fa-level-up-float {
+          animation: faLevelUpFloat 2000ms ease-out;
+          color: #14b8a6 !important;
+          font-weight: 800;
+          font-size: 18px;
+          text-shadow: 0 0 6px rgba(20, 184, 166, 0.8),
+            0 0 12px rgba(20, 184, 166, 0.4), 0 2px 4px rgba(0, 0, 0, 0.9);
+          filter: drop-shadow(0 0 4px rgba(20, 184, 166, 0.6));
+        }
         /* Skills trigger button */
         @keyframes faSkillGlow {
           0% {
@@ -488,6 +566,31 @@ export default function Game() {
             );
           background-size: 22px 22px, 22px 22px;
           background-position: -1px -1px, -1px -1px;
+        }
+
+        /* Enhanced damage number styles */
+        .fa-damage-hero {
+          color: #10b981 !important;
+          text-shadow: 0 0 4px rgba(16, 185, 129, 0.8),
+            0 0 8px rgba(16, 185, 129, 0.4), 0 1px 3px rgba(0, 0, 0, 0.9);
+        }
+
+        .fa-damage-enemy {
+          color: #f87171 !important;
+          text-shadow: 0 0 4px rgba(248, 113, 113, 0.8),
+            0 0 8px rgba(248, 113, 113, 0.4), 0 1px 3px rgba(0, 0, 0, 0.9);
+        }
+
+        .fa-damage-heal {
+          color: #4ade80 !important;
+          text-shadow: 0 0 4px rgba(74, 222, 128, 0.8),
+            0 0 8px rgba(74, 222, 128, 0.4), 0 1px 3px rgba(0, 0, 0, 0.9);
+        }
+
+        .fa-damage-gem {
+          color: #67e8f9 !important;
+          text-shadow: 0 0 4px rgba(103, 232, 249, 0.8),
+            0 0 8px rgba(103, 232, 249, 0.4), 0 1px 3px rgba(0, 0, 0, 0.9);
         }
       `}</style>
       <div className="flex items-center justify-between gap-2">
@@ -576,11 +679,10 @@ export default function Game() {
                       ref={fighterAnchorRef}
                       className={`relative size-8 sm:size-10 rounded-full bg-muted/50 border flex items-center justify-center shrink-0 ${
                         heroHit ? "fa-hit-flash" : ""
-                      }`}
+                      } ${levelUpGlow ? "fa-level-up-glow" : ""}`}
                       aria-hidden
                     >
                       <span className="fa-ring-pulse" />
-                      {heroHit && <HitSparks count={5} />}
                       <HeroIcon
                         className={`size-4 sm:size-5 ${heroClassColor}`}
                       />
@@ -640,14 +742,15 @@ export default function Game() {
             </div>
 
             <div className="flex items-center justify-between">
-              <h3 className="text-xs sm:text-sm font-medium">
-                Atributos{" "}
-                {upPoints > 0 && (
-                  <span className="text-muted-foreground">(+{upPoints})</span>
-                )}
-              </h3>
+              <h3 className="text-xs sm:text-sm font-medium">Atributos</h3>
+              {upPoints > 0 && (
+                <div className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-teal-500/15 border border-teal-500/25 text-teal-300 text-[10px] sm:text-xs font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                  {upPoints} {upPoints === 1 ? "ponto" : "pontos"}
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 sm:gap-2 text-xs sm:text-sm">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-xs sm:text-sm">
               {(
                 [
                   {
@@ -684,12 +787,12 @@ export default function Game() {
               ).map((a) => (
                 <div
                   key={a.key}
-                  className="flex items-center justify-between rounded-md border px-1.5 sm:px-2 py-1 sm:py-1.5 min-w-0"
+                  className="flex items-center justify-between rounded-md border px-2 sm:px-3 py-1.5 sm:py-2 min-w-0 bg-background/50"
                 >
-                  <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="cursor-help font-medium text-xs sm:text-sm">
+                        <span className="cursor-help font-medium text-xs sm:text-sm text-muted-foreground">
                           {a.label}
                         </span>
                       </TooltipTrigger>
@@ -697,14 +800,14 @@ export default function Game() {
                         {a.desc}
                       </TooltipContent>
                     </Tooltip>
-                    <span className="text-muted-foreground text-xs sm:text-sm">
+                    <span className="font-semibold text-sm sm:text-base text-foreground">
                       {attrs[a.key]}
                     </span>
                   </div>
                   <Button
                     size="sm"
                     variant="secondary"
-                    className={`h-6 sm:h-7 px-1.5 sm:px-2.5 border shrink-0 ${
+                    className={`h-6 sm:h-7 px-1.5 sm:px-2 border shrink-0 ${
                       upPoints > 0 ? "fa-upbtn fa-upbtn-glow" : ""
                     }`}
                     aria-label={`Aumentar ${a.key}`}
@@ -906,38 +1009,40 @@ export default function Game() {
           contentClassName="h-full flex flex-col overflow-visible lg:overflow-auto"
         >
           <div ref={arenaRef} className="relative flex-1 flex flex-col">
-            {/* hero anchor now points to Fighter avatar outside; kept overlay simple */}
+            {/* Floats renderizados apenas para enemies dentro da arena */}
             <div className="absolute inset-0 pointer-events-none select-none z-20">
-              {floats.map((f) => {
-                const p = floatPos[f.id];
-                return (
-                  <span
-                    key={f.id}
-                    className={`absolute left-0 top-0 ${
-                      f.color === "crit"
-                        ? "fa-float-crit text-yellow-300 font-semibold drop-shadow"
-                        : "fa-float"
-                    } ${
-                      f.color === "hero"
-                        ? "text-emerald-300"
-                        : f.color === "enemy"
-                        ? "text-red-400"
-                        : f.color === "heal"
-                        ? "text-green-400"
-                        : "text-foreground"
-                    }`}
-                    style={{
-                      left: (p ? p.x : 0) + "px",
-                      top: (p ? p.y : 0) + "px",
-                      transform: `translate(-50%, -10px)`,
-                      pointerEvents: "none",
-                      opacity: 0.95,
-                    }}
-                  >
-                    {f.text}
-                  </span>
-                );
-              })}
+              {floats
+                .filter((f) => f.target === "enemy" || f.target === "misc")
+                .map((f) => {
+                  const p = floatPos[f.id];
+                  const getDamageClass = () => {
+                    if (f.color === "crit")
+                      return "fa-float-crit text-yellow-300";
+                    if (f.color === "hero") return "fa-float fa-damage-hero";
+                    if (f.color === "enemy") return "fa-float fa-damage-enemy";
+                    if (f.color === "heal") return "fa-float fa-damage-heal";
+                    if (f.text.includes("💎")) return "fa-float fa-damage-gem";
+                    return "fa-float";
+                  };
+
+                  return (
+                    <span
+                      key={f.id}
+                      className={`absolute left-0 top-0 ${getDamageClass()}`}
+                      style={{
+                        left: (p ? p.x : 0) + "px",
+                        top: (p ? p.y : 0) + "px",
+                        transform: `translate(-50%, -10px)`,
+                        pointerEvents: "none",
+                        opacity: 0.98,
+                        fontSize: f.color === "crit" ? "16px" : "14px",
+                        fontWeight: f.color === "crit" ? "800" : "700",
+                      }}
+                    >
+                      {f.text}
+                    </span>
+                  );
+                })}
             </div>
 
             <div className="rounded-xl border-2 border-dashed border-muted-foreground/40 bg-muted/5 ring-1 ring-inset ring-muted/30 p-2 sm:p-3 flex-1 flex flex-col fa-grid">
@@ -981,7 +1086,6 @@ export default function Game() {
                               }`}
                               aria-hidden
                             >
-                              {monsterHits.has(e.id) && <HitSparks />}
                               <span className="text-sm sm:text-lg">
                                 {e.emoji}
                               </span>

@@ -125,7 +125,7 @@ export function ClassSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={() => {}} modal>
-      <DialogContent 
+      <DialogContent
         showCloseButton={false}
         className="max-w-[95vw] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto p-2 sm:p-4"
         onPointerDownOutside={(e) => e.preventDefault()}

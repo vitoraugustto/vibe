@@ -9,109 +9,24 @@ import {
   Badge,
 } from "@/components";
 import { icons } from "lucide-react";
-
-export type HeroClass =
-  | "Guerreiro"
-  | "Ladino"
-  | "Mago"
-  | "Guardião"
-  | "Caçador"
-  | "Paladino"
-  | "Bárbaro"
-  | "Arcanista"
-  | "Monge";
-
-export type ClassInfo = {
-  name: HeroClass;
-  description: string;
-  strengths: string[];
-  icon: keyof typeof icons;
-  color: string;
-};
-
-const heroClasses: ClassInfo[] = [
-  {
-    name: "Guerreiro",
-    description: "Combatente equilibrado com foco em força e resistência.",
-    strengths: ["Alto dano físico", "Boa defesa", "Versátil"],
-    icon: "Sword",
-    color: "text-orange-400",
-  },
-  {
-    name: "Ladino",
-    description: "Veloz e ágil, especialista em ataques críticos.",
-    strengths: ["Alta velocidade", "Críticos frequentes", "Chance de gemas"],
-    icon: "Zap",
-    color: "text-purple-400",
-  },
-  {
-    name: "Mago",
-    description:
-      "Mestre da magia com alto potencial de dano e multiplicadores.",
-    strengths: ["Alto dano mágico", "Multiplicador de ouro", "Regeneração"],
-    icon: "Sparkles",
-    color: "text-blue-400",
-  },
-  {
-    name: "Guardião",
-    description: "Tanque resistente com alta defesa e vitalidade.",
-    strengths: ["Muito HP", "Alta defesa", "Resistente"],
-    icon: "Shield",
-    color: "text-gray-400",
-  },
-  {
-    name: "Caçador",
-    description: "Atirador de longo alcance com precisão letal.",
-    strengths: ["Ataques precisos", "Críticos letais", "Velocidade"],
-    icon: "Target",
-    color: "text-green-400",
-  },
-  {
-    name: "Paladino",
-    description: "Guerreiro sagrado com poderes de cura e proteção.",
-    strengths: ["Força e defesa", "Regeneração", "Resistência"],
-    icon: "Cross",
-    color: "text-yellow-400",
-  },
-  {
-    name: "Bárbaro",
-    description: "Combatente selvagem com força bruta devastadora.",
-    strengths: ["Dano máximo", "HP alto", "Fúria destrutiva"],
-    icon: "Axe",
-    color: "text-red-400",
-  },
-  {
-    name: "Arcanista",
-    description: "Mago avançado com domínio total sobre a magia.",
-    strengths: ["Magia suprema", "Multiplicadores", "Habilidades únicas"],
-    icon: "Wand",
-    color: "text-indigo-400",
-  },
-  {
-    name: "Monge",
-    description: "Lutador marcial com equilíbrio entre força e agilidade.",
-    strengths: ["Equilibrado", "Regeneração", "Combate corpo-a-corpo"],
-    icon: "Hand",
-    color: "text-amber-400",
-  },
-];
+import { HeroClassManager, type ClassId } from "@/games/fighter-arena/classes";
 
 // Função utilitária para obter o ícone de uma classe
-export function getClassIcon(heroClass: HeroClass): keyof typeof icons {
-  const classInfo = heroClasses.find((cls) => cls.name === heroClass);
-  return classInfo?.icon || "Sword"; // fallback para Sword se não encontrar
+export function getClassIcon(heroClassId: ClassId): keyof typeof icons {
+  const classInfo = HeroClassManager.getClass(heroClassId);
+  return (classInfo?.icon || "Sword") as keyof typeof icons;
 }
 
 // Função utilitária para obter a cor de uma classe
-export function getClassColor(heroClass: HeroClass): string {
-  const classInfo = heroClasses.find((cls) => cls.name === heroClass);
-  return classInfo?.color || "text-orange-400"; // fallback para orange se não encontrar
+export function getClassColor(heroClassId: ClassId): string {
+  const classInfo = HeroClassManager.getClass(heroClassId);
+  return classInfo?.color || "text-orange-400";
 }
 
 export type ClassSelectionModalProps = {
   open: boolean;
-  onSelectClass: (heroClass: HeroClass) => void;
-  currentClass?: HeroClass;
+  onSelectClass: (heroClass: ClassId) => void;
+  currentClass?: ClassId;
 };
 
 export function ClassSelectionModal({
@@ -119,9 +34,11 @@ export function ClassSelectionModal({
   onSelectClass,
   currentClass,
 }: ClassSelectionModalProps) {
-  const handleSelectClass = (heroClass: HeroClass) => {
+  const handleSelectClass = (heroClass: ClassId) => {
     onSelectClass(heroClass);
   };
+
+  const heroClasses = HeroClassManager.getAllClasses();
 
   return (
     <Dialog open={open} onOpenChange={() => {}} modal>
@@ -144,12 +61,13 @@ export function ClassSelectionModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 py-2 sm:py-3">
           {heroClasses.map((classInfo) => {
-            const IconComponent = icons[classInfo.icon] || icons.User;
-            const isSelected = currentClass === classInfo.name;
+            const IconComponent =
+              icons[classInfo.icon as keyof typeof icons] || icons.User;
+            const isSelected = currentClass === classInfo.id;
 
             return (
               <div
-                key={classInfo.name}
+                key={classInfo.id}
                 className={`
                   relative rounded-lg p-2 sm:p-3 border-2 cursor-pointer transition-all duration-200 
                   hover:scale-[1.02] active:scale-[0.98] touch-manipulation
@@ -159,7 +77,7 @@ export function ClassSelectionModal({
                       : "border-muted hover:border-muted-foreground/50 bg-background/60"
                   }
                 `}
-                onClick={() => handleSelectClass(classInfo.name)}
+                onClick={() => handleSelectClass(classInfo.id)}
               >
                 {isSelected && (
                   <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2">

@@ -1,15 +1,18 @@
 # Fighter Arena - Changelog
 
-## [1.0.0] - 2025-09-03
+## [1.1.0] - 2025-09-03
 
 ### Added
+
 - **Hero Class System**: Structured hero classes with specialized attributes
+
   - 9 unique classes: Warrior, Mage, Archer, Assassin, Paladin, Necromancer, Berserker, Monk, Druid
   - HeroClassManager utility for class management (`classes.ts`)
   - ID-based class selection system replacing string names
   - Specialized attribute bonuses and descriptions per class
 
 - **Monster System**: Comprehensive creature system with progression
+
   - 41 unique monsters across 30 levels (`monsters.ts`)
   - MonsterManager utility for monster spawning and management
   - Rarity system: common, elite, berserk creatures
@@ -17,6 +20,7 @@
   - Detailed monster descriptions and spawn weights
 
 - **Enhanced UI Components**:
+
   - Detailed tooltips for fighter and monster cards
   - Full card hover areas for better user experience
   - Comprehensive stat display in tooltips
@@ -28,12 +32,15 @@
   - Improved state management with new systems integration
 
 ### Changed
+
 - **State Management**: Refactored to use new class and monster systems
+
   - Enemy type updated to use monster IDs
   - Hero class system integrated with ID-based selection
   - Spawn methods updated to use MonsterManager
 
 - **Class Selection Modal**: Simplified to use new HeroClassManager
+
   - Removed hardcoded class definitions
   - Integrated with structured class system
   - Improved class display and selection
@@ -44,7 +51,9 @@
   - Improved visual feedback and user interaction
 
 ### Technical Details
+
 - **Files Added**:
+
   - `src/games/fighter-arena/classes.ts` - Hero class definitions and manager
   - `src/games/fighter-arena/monsters.ts` - Monster definitions and manager
   - `src/games/fighter-arena/CHANGELOG.md` - This changelog
@@ -57,6 +66,7 @@
 ---
 
 ## [Initial]
+
 - Base Fighter Arena game implementation
 - Basic combat system and UI
 - Initial class and enemy mechanics

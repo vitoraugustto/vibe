@@ -32,10 +32,11 @@ import { SectionCard, type SectionCardAction } from "./components/SectionCard";
 import { HpBar, XpBar } from "./components/Bars";
 import GameOverModal from "./components/GameOverModal";
 import ClassSelectionModal, {
-  type HeroClass,
   getClassIcon,
   getClassColor,
 } from "./components/ClassSelectionModal";
+import { HeroClassManager, type ClassId } from "@/games/fighter-arena/classes";
+import { MonsterManager } from "@/games/fighter-arena/monsters";
 import { icons, LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -202,11 +203,12 @@ export default function Game() {
     setOpenClassSelection(true);
   };
 
-  const handleClassSelection = (selectedClass: HeroClass) => {
+  const handleClassSelection = (selectedClass: ClassId) => {
     useArenaStore.getState().resetAll();
     setHeroClass(selectedClass);
     setOpenClassSelection(false);
-    toast(`Novo ${selectedClass} pronto!`);
+    const className = HeroClassManager.getClass(selectedClass).name;
+    toast(`Novo ${className} pronto!`);
   };
 
   // Using advanced bars; no need for separate smoothed percentages here
@@ -653,7 +655,7 @@ export default function Game() {
                 variant="secondary"
                 className={`rounded-sm border ${heroClassColor}`}
               >
-                {heroClass}
+                {HeroClassManager.getClass(heroClass).name}
               </Badge>
               <span className="text-sm text-muted-foreground">LVL {level}</span>
             </>
@@ -671,31 +673,34 @@ export default function Game() {
           contentClassName=""
         >
           <div className="space-y-2 sm:space-y-3">
-            <div className="rounded-lg p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5">
-              <div className="rounded-[10px] border border-border/50 ring-1 ring-inset ring-muted/30 bg-background/60 shadow-sm p-2 sm:p-3">
-                <div className="flex items-center justify-between gap-2 sm:gap-3">
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <div
-                      ref={fighterAnchorRef}
-                      className={`relative size-8 sm:size-10 rounded-full bg-muted/50 border flex items-center justify-center shrink-0 ${
-                        heroHit ? "fa-hit-flash" : ""
-                      } ${levelUpGlow ? "fa-level-up-glow" : ""}`}
-                      aria-hidden
-                    >
-                      <span className="fa-ring-pulse" />
-                      <HeroIcon
-                        className={`size-4 sm:size-5 ${heroClassColor}`}
-                      />
-                    </div>
-                    <div className="leading-tight min-w-0">
-                      <div className="text-xs sm:text-sm font-semibold">
-                        Fighter
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="rounded-lg p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5 cursor-help">
+                  <div className="rounded-[10px] border border-border/50 ring-1 ring-inset ring-muted/30 bg-background/60 shadow-sm p-2 sm:p-3">
+                    <div className="flex items-center justify-between gap-2 sm:gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                        <div
+                          ref={fighterAnchorRef}
+                          className={`relative size-8 sm:size-10 rounded-full bg-muted/50 border flex items-center justify-center shrink-0 ${
+                            heroHit ? "fa-hit-flash" : ""
+                          } ${levelUpGlow ? "fa-level-up-glow" : ""}`}
+                          aria-hidden
+                        >
+                          <span className="fa-ring-pulse" />
+                          <HeroIcon
+                            className={`size-4 sm:size-5 ${heroClassColor}`}
+                          />
+                        </div>
+                        <div className="leading-tight min-w-0">
+                          <div className="text-xs sm:text-sm font-semibold">
+                            Fighter
+                          </div>
+                          <div className="text-[10px] sm:text-[11px] text-muted-foreground truncate">
+                            {HeroClassManager.getClass(heroClass).name} • Nível{" "}
+                            {level}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] sm:text-[11px] text-muted-foreground truncate">
-                        {heroClass} • Nível {level}
-                      </div>
-                    </div>
-                  </div>
                   <div className="hidden md:flex items-center gap-1 lg:gap-2 shrink-0">
                     <div className="inline-flex items-center gap-1 rounded-md border px-1.5 lg:px-2 py-1 text-[10px] lg:text-xs">
                       <span className="text-muted-foreground">APS</span>
@@ -728,8 +733,60 @@ export default function Game() {
                     {Math.round(heroHp)} / {Math.round(heroMaxHp)}
                   </span>
                 </div>
+                </div>
               </div>
-            </div>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-sm">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <HeroIcon className={`size-5 ${heroClassColor}`} />
+                  <div>
+                    <div className="font-semibold">Fighter</div>
+                    <div className="text-xs text-muted-foreground">
+                      {HeroClassManager.getClass(heroClass).name} • Nível {level}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  {HeroClassManager.getClass(heroClass).description}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">HP:</span>
+                    <span className="font-medium">{Math.round(heroHp)} / {Math.round(heroMaxHp)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Dano Base:</span>
+                    <span className="font-medium text-red-400">{Math.round(heroBaseDamage(attrs))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">APS:</span>
+                    <span className="font-medium text-blue-400">{apsFromAGI(attrs.AGI).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Crítico:</span>
+                    <span className="font-medium text-yellow-400">{critChancePct(attrs.LCK).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Defesa:</span>
+                    <span className="font-medium text-green-400">{attrs.DEF}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">XP:</span>
+                    <span className="font-medium text-purple-400">{Math.round(xp * 100)}%</span>
+                  </div>
+                </div>
+                
+                <div className="pt-1 border-t border-border/50">
+                  <div className="text-xs text-muted-foreground">
+                    <strong>Atributos:</strong> STR {attrs.STR} • AGI {attrs.AGI} • INT {attrs.INT} • VIT {attrs.VIT} • DEF {attrs.DEF} • LCK {attrs.LCK}
+                  </div>
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
 
             <div className="space-y-1 sm:space-y-2">
               <div className="flex items-center justify-between text-xs sm:text-sm">
@@ -1073,62 +1130,107 @@ export default function Game() {
                         key={e.id}
                         className="rounded-lg p-[1px] sm:p-[1.5px] bg-gradient-to-br from-white/5 via-muted/30 to-white/5 transition hover:translate-y-[1px]"
                       >
-                        <div
-                          className={`rounded-[8px] sm:rounded-[12px] border border-border/50 ring-1 ring-inset shadow-sm hover:shadow-md ${rarityRing}`}
-                        >
-                          <div className="p-2 sm:p-3 flex items-center gap-2 sm:gap-3">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
                             <div
-                              ref={(el) => {
-                                enemyRefs.current[e.id] = el;
-                              }}
-                              className={`relative size-8 sm:size-10 rounded-full bg-background/60 border flex items-center justify-center shrink-0 ${
-                                monsterHits.has(e.id) ? "fa-hit-flash" : ""
-                              }`}
-                              aria-hidden
+                              className={`rounded-[8px] sm:rounded-[12px] border border-border/50 ring-1 ring-inset shadow-sm hover:shadow-md cursor-help ${rarityRing}`}
                             >
-                              <span className="text-sm sm:text-lg">
-                                {e.emoji}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-1 sm:gap-2 min-w-0">
-                                <span className="text-xs sm:text-sm font-medium truncate">
-                                  {e.name}
-                                </span>
-                                <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                                  {typeof e.level === "number" && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="h-4 sm:h-5 px-1 sm:px-1.5 text-[8px] sm:text-[10px]"
-                                    >
-                                      LVL {e.level}
-                                    </Badge>
-                                  )}
-                                  <Badge
-                                    variant="outline"
-                                    className={`h-4 sm:h-5 px-1 sm:px-1.5 text-[8px] sm:text-[10px] uppercase ${rarityText}`}
-                                  >
-                                    {e.rarity}
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="mt-1.5 sm:mt-2">
-                                <div className="mb-0.5 sm:mb-1 flex items-center justify-between text-[9px] sm:text-[10px] text-muted-foreground">
-                                  <span>Vida</span>
-                                  <span className="tabular-nums">
-                                    {Math.max(0, Math.round(e.hp))} /{" "}
-                                    {Math.round(e.maxHp)}
+                              <div className="p-2 sm:p-3 flex items-center gap-2 sm:gap-3">
+                                <div
+                                  ref={(el) => {
+                                    enemyRefs.current[e.id] = el;
+                                  }}
+                                  className={`relative size-8 sm:size-10 rounded-full bg-background/60 border flex items-center justify-center shrink-0 ${
+                                    monsterHits.has(e.id) ? "fa-hit-flash" : ""
+                                  }`}
+                                  aria-hidden
+                                >
+                                  <span className="text-sm sm:text-lg">
+                                    {e.emoji}
                                   </span>
                                 </div>
-                                <HpBar
-                                  current={e.hp}
-                                  max={e.maxHp}
-                                  height={6}
-                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1 sm:gap-2 min-w-0">
+                                    <span className="text-xs sm:text-sm font-medium truncate">
+                                      {e.name}
+                                    </span>
+                                    <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                                      <Badge
+                                        variant="secondary"
+                                        className="h-4 sm:h-5 px-1 sm:px-1.5 text-[8px] sm:text-[10px]"
+                                      >
+                                        LVL {e.level}
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={`h-4 sm:h-5 px-1 sm:px-1.5 text-[8px] sm:text-[10px] uppercase ${rarityText}`}
+                                      >
+                                        {e.rarity}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                  <div className="mt-1.5 sm:mt-2">
+                                    <div className="mb-0.5 sm:mb-1 flex items-center justify-between text-[9px] sm:text-[10px] text-muted-foreground">
+                                      <span>Vida</span>
+                                      <span className="tabular-nums">
+                                        {Math.max(0, Math.round(e.hp))} /{" "}
+                                        {Math.round(e.maxHp)}
+                                      </span>
+                                    </div>
+                                    <HpBar
+                                      current={e.hp}
+                                      max={e.maxHp}
+                                      height={6}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </div>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-sm">
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xl">{e.emoji}</span>
+                                <div>
+                                  <div className="font-semibold">{e.name}</div>
+                                  <div className="text-xs text-muted-foreground capitalize">
+                                    {e.rarity} • Nível {e.level}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="text-sm text-muted-foreground">
+                                {MonsterManager.getMonster(e.monsterId).description}
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">HP:</span>
+                                  <span className="font-medium">{Math.round(e.hp)} / {Math.round(e.maxHp)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Dano:</span>
+                                  <span className="font-medium text-red-400">{e.damage}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Velocidade:</span>
+                                  <span className="font-medium text-blue-400">{(1/e.speed).toFixed(1)}x</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">HP Base:</span>
+                                  <span className="font-medium text-green-400">{MonsterManager.getMonster(e.monsterId).baseHp}</span>
+                                </div>
+                              </div>
+                              
+                              <div className="pt-1 border-t border-border/50">
+                                <div className="text-xs text-muted-foreground">
+                                  <strong>Level Range:</strong> {MonsterManager.getMonster(e.monsterId).levelRange.min}-{MonsterManager.getMonster(e.monsterId).levelRange.max} • 
+                                  <strong> Spawn:</strong> {MonsterManager.getMonster(e.monsterId).rarityWeights[e.rarity]}% {e.rarity}
+                                </div>
+                              </div>
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
                       </div>
                     );
                   })}

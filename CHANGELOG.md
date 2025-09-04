@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0] - 2025-09-03
+See the game changelog for details: [fighter-arena/CHANGELOG.md](./src/games/fighter-arena/CHANGELOG.md)
+
+### Added
+- **Fighter Arena Game Enhancements**:
+  - Structured hero class system with 9 unique classes
+  - Comprehensive monster system with 41 creatures
+  - Enhanced UI with detailed tooltips for fighters and monsters
+  - Improved game mechanics and state management
+
+### Changed
+- Updated Fighter Arena to use ID-based systems for better organization
+- Enhanced user experience with full-card tooltips and detailed information display
+
+---
 
 ## [1.0.0] - 2025-09-01
 See the game changelog for details: [generic-clicker/CHANGELOG.md](./src/games/generic-clicker/CHANGELOG.md)

@@ -1,41 +1,54 @@
 export type Attrs = { STR:number; AGI:number; INT:number; VIT:number; DEF:number; LCK:number; };
 
-// Cooldown em ms: 1800 * (0.99^AGI), sem cap
+// NOVO BALANCEAMENTO DOS ATRIBUTOS:
+
+// STR (Força): Aumenta dano base de forma mais impactante
+// Cada ponto de STR = +3.2 de dano base (era 2.4)
+export const heroBaseDamage = ({STR,AGI,INT}:Attrs) => Math.max(1, STR*3.2 + AGI*1.8 + INT*1.1);
+
+// AGI (Agilidade): Reduz cooldown exponencialmente (sem mudança, já estava bom)
 export const cooldownMsFromAGI = (agi:number) => 1800 * Math.pow(0.99, Math.max(0, agi));
 export const apsFromAGI = (agi:number) => 1000 / cooldownMsFromAGI(agi);
 
-// Dano base aproximado do herói (antes de DEF do alvo)
-export const heroBaseDamage = ({STR,AGI,INT}:Attrs) => Math.max(1, STR*2.4 + AGI*1.7 + INT*0.9);
+// INT (Inteligência): Melhor multiplicador de ouro + dano mágico + chance de gemas
+// Multiplicador de ouro: +0.6% por ponto (era 0.4%), cap aumentado para +300%
+export const goldMultFromINT = (int:number) => 1 + Math.min(3.0, int*0.006);
 
-// Chance de crítico: 5% + LCK*0.2% (cap 50%)
-export const critChancePct = (lck:number) => Math.min(50, 5 + lck*0.2);
-export const critMultiplier = 1.7;
+// VIT (Vitalidade): Mais HP por ponto 
+// Cada ponto de VIT = +18 HP (era 14)
+export const maxHpFromVIT = (vit:number) => 520 + vit*18;
 
-// HP Máx
-export const maxHpFromVIT = (vit:number) => 520 + vit*14;
+// DEF (Defesa): Redução de dano mais efetiva + regeneração natural
+// Cada ponto de DEF = -1.2 de dano recebido (era -1) + 0.1% regen por segundo
+export const applyDefense = (raw:number, def:number) => Math.max(1, Math.round(raw - def*1.2));
+export const regenFromDEF = (def:number, maxHp:number) => Math.round(maxHp * (def * 0.001)); // 0.1% por ponto de DEF
 
-// Ouro por kill multiplicador via INT (até +200%)
-export const goldMultFromINT = (int:number) => 1 + Math.min(2.0, int*0.004);
+// LCK (Sorte): Melhor chance de crítico + maior chance de gemas + esquiva
+// Chance de crítico: 6% + LCK*0.3% (cap 60%) - era 5% + LCK*0.2% cap 50%
+export const critChancePct = (lck:number) => Math.min(60, 6 + lck*0.3);
+export const critMultiplier = 1.8; // Aumentado de 1.7 para 1.8
+// Chance de esquiva: LCK*0.15% (cap 25%)
+export const dodgeChancePct = (lck:number) => Math.min(25, lck*0.15);
 
-// Chance de 💎 base (não miniboss): 2% + min(level/100, 6%) + min(LCK*0.1%, 5%) + min(INT*0.15%, 10%)
+// Chance de 💎 melhorada: 3% base + melhor scaling
 export const gemChancePct = (level:number, lck:number, int:number) => {
-  const lvl = Math.min(6, level/100*100); // 0..6
-  const lckBonus = Math.min(5, lck*0.1);
-  const intBonus = Math.min(10, int*0.15);
-  return 2 + lvl + lckBonus + intBonus;
+  const lvl = Math.min(8, level/80*100); // 0..8% do level
+  const lckBonus = Math.min(8, lck*0.12); // Era 0.1, agora 0.12
+  const intBonus = Math.min(12, int*0.18); // Era 0.15, agora 0.18
+  return 3 + lvl + lckBonus + intBonus; // Base 3% (era 2%)
 };
-
-// Mitigação simplificada contra DEF (mantém dano mínimo 1)
-export const applyDefense = (raw:number, def:number) => Math.max(1, raw - def);
 
 // Dano do herói com variação leve e crítico opcional
 export function rollHeroDamage(attrs: Attrs, isCrit: boolean) {
   const base = heroBaseDamage(attrs);
   const spread = base * 0.12; // ±12%
   const raw = base + (Math.random() * 2 - 1) * spread;
-  const mult = isCrit ? 1.7 : 1.0;
+  const mult = isCrit ? critMultiplier : 1.0;
   return Math.max(1, Math.round(raw * mult));
 }
 
 // Chance de crítico do herói (0..1)
-export const critChance01 = (lck:number) => Math.min(0.5, (5 + lck*0.2) / 100);
+export const critChance01 = (lck:number) => Math.min(0.6, (6 + lck*0.3) / 100);
+
+// Chance de esquiva do herói (0..1)
+export const dodgeChance01 = (lck:number) => Math.min(0.25, (lck*0.15) / 100);

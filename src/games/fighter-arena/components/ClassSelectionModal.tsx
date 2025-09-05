@@ -27,26 +27,36 @@ export type ClassSelectionModalProps = {
   open: boolean;
   onSelectClass: (heroClass: ClassId) => void;
   currentClass?: ClassId;
+  canClose?: boolean; // Nova prop para controlar se pode fechar
+  onClose?: () => void; // Callback para quando fechar
 };
 
 export function ClassSelectionModal({
   open,
   onSelectClass,
   currentClass,
+  canClose = false,
+  onClose,
 }: ClassSelectionModalProps) {
   const handleSelectClass = (heroClass: ClassId) => {
     onSelectClass(heroClass);
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open && canClose && onClose) {
+      onClose();
+    }
+  };
+
   const heroClasses = HeroClassManager.getAllClasses();
 
   return (
-    <Dialog open={open} onOpenChange={() => {}} modal>
+    <Dialog open={open} onOpenChange={handleOpenChange} modal>
       <DialogContent
-        showCloseButton={false}
+        showCloseButton={canClose}
         className="max-w-[95vw] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto p-2 sm:p-4"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => canClose ? undefined : e.preventDefault()}
+        onEscapeKeyDown={(e) => canClose ? undefined : e.preventDefault()}
       >
         <DialogHeader className="space-y-2 sm:space-y-3">
           <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">

@@ -87,37 +87,48 @@ export function HpBar({
     }
   }, [targetPct]);
 
-  useEffect(() => () => {
-    if (mainRaf.current) cancelAnimationFrame(mainRaf.current);
-    if (ghostRaf.current) cancelAnimationFrame(ghostRaf.current);
-    if (ghostDelayTo.current) clearTimeout(ghostDelayTo.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (mainRaf.current) cancelAnimationFrame(mainRaf.current);
+      if (ghostRaf.current) cancelAnimationFrame(ghostRaf.current);
+      if (ghostDelayTo.current) clearTimeout(ghostDelayTo.current);
+    },
+    []
+  );
 
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-full bg-primary/20",
+        "relative w-full overflow-hidden rounded-full bg-slate-800/60 border border-slate-700/50",
         className
       )}
       style={{ height }}
     >
       {/* Ghost (damage) layer */}
       <div
-        className="absolute inset-y-0 left-0 bg-red-500/50"
+        className="absolute inset-y-0 left-0 bg-red-500/40 transition-all duration-200"
         style={{ width: `${ghostPct}%` }}
         aria-hidden
       />
+
       {/* Main HP layer */}
       <div
-        className="absolute inset-y-0 left-0 bg-emerald-500"
+        className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 to-green-500 transition-all duration-200"
         style={{ width: `${mainPct}%` }}
       />
+
       {/* Flash overlays */}
       {flash === "damage" && (
-        <div className="absolute inset-0 fa-hp-damage" aria-hidden />
+        <div
+          className="absolute inset-0 fa-hp-damage bg-red-400/30"
+          aria-hidden
+        />
       )}
       {flash === "heal" && (
-        <div className="absolute inset-0 fa-hp-heal" aria-hidden />
+        <div
+          className="absolute inset-0 fa-hp-heal bg-green-400/30"
+          aria-hidden
+        />
       )}
     </div>
   );
@@ -184,24 +195,45 @@ export function XpBar({
     prevTargetRef.current = targetPct;
   }, [targetPct, level, prevLevel]);
 
-  useEffect(() => () => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    },
+    []
+  );
 
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden rounded-full bg-primary/20",
-        pulse && "fa-xp-lvlup",
+        "relative w-full overflow-hidden rounded-full bg-slate-800/60 border border-slate-700/50",
+        pulse && "fa-xp-lvlup ring-1 ring-purple-400/30",
         className
       )}
       style={{ height }}
     >
+      {/* Main XP bar */}
       <div
-        className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 to-cyan-400"
+        className="absolute inset-y-0 left-0 bg-gradient-to-r from-purple-600 to-blue-500 transition-all duration-300"
         style={{ width: `${pct}%` }}
       />
-      <div className={cn("fa-xp-shimmer", shimmer && "is-on")} aria-hidden />
+
+      {/* Shimmer effect */}
+      <div
+        className={cn("fa-xp-shimmer absolute inset-0", shimmer && "is-on")}
+        aria-hidden
+      >
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent transform -skew-x-12"
+          style={{
+            animation: shimmer ? "shimmer 0.6s ease-out" : "none",
+          }}
+        />
+      </div>
+
+      {/* Level up effect */}
+      {pulse && (
+        <div className="absolute inset-0 bg-purple-400/20" aria-hidden />
+      )}
     </div>
   );
 }
